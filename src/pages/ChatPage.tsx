@@ -7,6 +7,11 @@ type TaskRef = { id: string; title: string; due_date: string | null };
 type Meta = { created: TaskRef[]; updated: TaskRef[]; completed: TaskRef[]; pendingDelete: TaskRef | null; summary: string };
 type Message = { id: string; role: 'user' | 'assistant'; content: string; meta: Meta | null; created_at: string };
 
+// Web Speech API (RF-21): solo existe en algunos navegadores (Chrome/Edge/Safari); si no, no se muestra el botón.
+const SpeechRecognition: any =
+  (window as unknown as Record<string, unknown>).SpeechRecognition ??
+  (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
+
 const EXAMPLES = ['Cobrar a Juan el viernes y cotización a Ana mañana, urgente', '¿Qué tengo pendiente esta semana?'];
 
 export default function ChatPage() {
@@ -16,7 +21,22 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<{ message: string; retryable: boolean } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [listening, setListening] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  function dictate() {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-DO';
+    recognition.interimResults = false;
+    recognition.onresult = (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => {
+      const spoken = event.results[0][0].transcript;
+      setText((current) => (current ? `${current} ${spoken}` : spoken));
+    };
+    recognition.onerror = () => setError({ message: 'No se pudo usar el micrófono. Revisa el permiso del navegador.', retryable: false });
+    recognition.onend = () => setListening(false);
+    setListening(true);
+    recognition.start();
+  }
 
   async function loadHistory() {
     setHistoryError('');
@@ -147,6 +167,17 @@ export default function ChatPage() {
           maxLength={2000}
           aria-label="Mensaje para el asistente"
         />
+        {SpeechRecognition && (
+          <button
+            type="button"
+            className={listening ? 'btn danger' : 'btn secondary'}
+            onClick={dictate}
+            disabled={listening || sending}
+            aria-label={listening ? 'Escuchando…' : 'Dictar por voz'}
+          >
+            {listening ? '●' : '🎤'}
+          </button>
+        )}
         <button className="btn" disabled={sending || !text.trim()}>Enviar</button>
       </form>
     </section>
