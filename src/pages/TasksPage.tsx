@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { supabase, errorMessage, PRIORITY_LABEL, STATUS_LABEL, TASK_SELECT, type Status, type Task } from '../lib/supabase';
 import { taskView, todayIn, type TaskView } from '../../supabase/functions/_shared/dates.ts';
+import { useTeam } from '../lib/useTeam';
 
 const VIEWS: { id: TaskView; label: string }[] = [
   { id: 'today', label: 'Hoy' },
@@ -22,11 +23,18 @@ const EMPTY_TEXT: Record<TaskView, string> = {
 const NEXT_STATUS: Record<Status, Status> = { pending: 'in_progress', in_progress: 'done', done: 'pending' };
 
 export default function TasksPage() {
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
+  const isSupervisor = profile?.role === 'supervisor';
+  const team = useTeam(isSupervisor);
   const cacheKey = `tasks:${session!.user.id}`;
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState('');
   const [view, setView] = useState<TaskView>('today');
+  // Filtros combinables (RF-09); "responsable" es el filtro por persona del supervisor.
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
+  const [assigneeFilter, setAssigneeFilter] = useState('');
 
   const load = useCallback(async () => {
     setError('');
@@ -58,7 +66,15 @@ export default function TasksPage() {
   }
 
   const today = todayIn(new Date());
-  const visible = (tasks ?? []).filter((t) => taskView(t, today) === view);
+  const needle = search.trim().toLocaleLowerCase();
+  const filtered = (tasks ?? []).filter(
+    (t) =>
+      (!statusFilter || t.status === statusFilter) &&
+      (!priorityFilter || t.priority === priorityFilter) &&
+      (!assigneeFilter || t.assignee_id === assigneeFilter) &&
+      (!needle || `${t.title} ${t.description ?? ''}`.toLocaleLowerCase().includes(needle)),
+  );
+  const visible = filtered.filter((t) => taskView(t, today) === view);
   if (view === 'done') visible.reverse();
 
   return (
@@ -73,9 +89,27 @@ export default function TasksPage() {
             onClick={() => setView(v.id)}
           >
             {v.label}
-            <span className="count">{(tasks ?? []).filter((t) => taskView(t, today) === v.id).length}</span>
+            <span className="count">{filtered.filter((t) => taskView(t, today) === v.id).length}</span>
           </button>
         ))}
+      </div>
+
+      <div className="filters">
+        <input type="search" placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar por texto" />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Filtrar por estado">
+          <option value="">Estado</option>
+          {Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} aria-label="Filtrar por prioridad">
+          <option value="">Prioridad</option>
+          {Object.entries(PRIORITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        {isSupervisor && (
+          <select value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value)} aria-label="Filtrar por persona">
+            <option value="">Todas las personas</option>
+            {team.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+          </select>
+        )}
       </div>
 
       {error && (
@@ -88,7 +122,7 @@ export default function TasksPage() {
       {tasks === null && !error && <p className="center muted">Cargando tareas…</p>}
 
       {tasks !== null && visible.length === 0 && (
-        <p className="center muted">{EMPTY_TEXT[view]}</p>
+        <p className="center muted">{filtered.length < tasks.length ? 'Ninguna tarea coincide con los filtros.' : EMPTY_TEXT[view]}</p>
       )}
 
       <ul className="task-list">

@@ -12,6 +12,7 @@ import {
   type Task,
 } from '../lib/supabase';
 import { isValidIsoDate } from '../../supabase/functions/_shared/dates.ts';
+import { useTeam } from '../lib/useTeam';
 
 type Form = { title: string; description: string; due_date: string; priority: Priority; status: Status };
 type FieldErrors = Partial<Record<'title' | 'due_date', string>>;
@@ -23,9 +24,12 @@ export default function TaskFormPage() {
   const isNew = !id;
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const isSupervisor = profile?.role === 'supervisor';
+  const team = useTeam(isSupervisor);
   const dateRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<Form>(EMPTY);
+  const [assigneeId, setAssigneeId] = useState(profile?.id ?? '');
   const [assigneeName, setAssigneeName] = useState(profile?.full_name ?? '');
   const [loading, setLoading] = useState(!isNew);
   const [loadError, setLoadError] = useState('');
@@ -53,6 +57,7 @@ export default function TaskFormPage() {
           priority: task.priority,
           status: task.status,
         });
+        setAssigneeId(task.assignee_id);
         setAssigneeName(task.assignee?.full_name ?? '');
       });
   }, [id, isNew]);
@@ -87,6 +92,8 @@ export default function TaskFormPage() {
       due_date: form.due_date || null,
       priority: form.priority,
       status: form.status,
+      // Solo un supervisor reasigna; RLS y un trigger lo impiden a los demás.
+      ...(isSupervisor && assigneeId ? { assignee_id: assigneeId } : {}),
     };
     const { error } = isNew
       ? await supabase.from('tasks').insert(values)
@@ -166,7 +173,16 @@ export default function TaskFormPage() {
 
       <label>
         Responsable
-        <input value={assigneeName} disabled />
+        {isSupervisor ? (
+          <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+            {team.length === 0 && <option value={assigneeId}>{assigneeName}</option>}
+            {team.map((p) => (
+              <option key={p.id} value={p.id}>{p.full_name}</option>
+            ))}
+          </select>
+        ) : (
+          <input value={assigneeName} disabled />
+        )}
       </label>
 
       {saveError && <p className="error" role="alert">{saveError}</p>}
