@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "deno test supabase/functions"
+    "test": "cd supabase/functions && deno test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",

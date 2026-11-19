@@ -85,3 +85,20 @@ input:disabled { background: #f3f4f6; color: var(--muted); }
 .fab { position: fixed; right: 1rem; bottom: max(1rem, env(safe-area-inset-bottom)); width: 56px; height: 56px; border-radius: 50%;
   background: var(--primary); color: #fff; font-size: 2rem; display: flex; align-items: center; justify-content: center;
   text-decoration: none; box-shadow: 0 4px 12px #0003; }
+
+/* Chat */
+.chat { display: flex; flex-direction: column; }
+.chat-log { display: flex; flex-direction: column; gap: 0.6rem; padding-bottom: 7rem; }
+.bubble { max-width: 88%; padding: 0.6rem 0.8rem; border-radius: 12px; background: #fff; border: 1px solid var(--border); }
+.bubble.user { align-self: flex-end; background: var(--primary); color: #fff; border-color: var(--primary); }
+.bubble.assistant { align-self: flex-start; }
+.bubble-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.bubble .actions { margin-top: 0.5rem; }
+.action-links { margin-top: 0.5rem; font-size: 0.92rem; }
+.action-links ul { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+.action-links a { color: var(--primary); display: inline-block; min-height: 32px; line-height: 32px; }
+.example { display: block; width: 100%; margin-top: 0.5rem; min-height: 44px; border: 1px dashed var(--border);
+  background: #fff; border-radius: 8px; color: var(--text); font-size: 0.95rem; cursor: pointer; padding: 0.5rem; }
+.chat-input { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 0.5rem; padding: 0.6rem;
+  padding-bottom: max(0.6rem, env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--border); }
+.chat-input textarea { flex: 1; resize: none; min-width: 0; }
