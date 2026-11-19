@@ -74,3 +74,12 @@ Captured read-only from the project's only design source. Every value below appe
 - Task card: white surface, 1px border, 4px left accent colored by priority.
 - Status pill cycles Pendiente → En progreso → Hecha with one tap.
 - Errors show next to the field (`.field-error`) or in an `.error-box` with a recovery action.
+
+## Logo
+
+| Token | Value | Source |
+|---|---|---|
+| `logo` | Speech bubble (white) + check (`--primary`) + spark (`priority-medium`), on a `--primary` → `status-progress-text` gradient tile, `rx 116/512` | `public/logo.svg`, `src/components/Logo.tsx` |
+| `app-icons` | `pwa-192.png`, `pwa-512.png` (rounded, transparent corners), `maskable-512.png` (full bleed, content at 80%), `apple-touch-icon.png` (full bleed, 86%) | `public/` |
+
+Meaning: what you write (bubble) becomes a done task (check) thanks to the assistant (spark).

@@ -5,7 +5,8 @@ import { supabase, errorMessage } from '../lib/supabase';
 import { timeOf } from '../lib/format';
 import { dayLabel, todayIn } from '../../supabase/functions/_shared/dates.ts';
 import AppHeader from '../components/AppHeader';
-import { ChatIcon, CheckIcon, ChevronIcon, MicIcon, SendIcon } from '../components/Icons';
+import Logo from '../components/Logo';
+import { CheckIcon, ChevronIcon, MicIcon, SendIcon } from '../components/Icons';
 import './chat.css';
 
 type TaskRef = { id: string; title: string; due_date: string | null };
@@ -168,7 +169,7 @@ export default function ChatPage() {
         )}
         {isEmpty && (
           <div className="empty">
-            <div className="illu"><ChatIcon size={32} /></div>
+            <Logo size={72} />
             <h2>¿Qué tienes pendiente?</h2>
             <p>Puedo crear, buscar y completar tareas. Prueba con:</p>
             <div className="chat-examples">

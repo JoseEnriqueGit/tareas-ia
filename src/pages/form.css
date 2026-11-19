@@ -40,5 +40,5 @@
   padding: max(48px, env(safe-area-inset-top)) 24px max(20px, env(safe-area-inset-bottom)); }
 .login-form h1 { font-size: 1.6rem; margin-top: 6px; }
 .login-sub { margin-top: 4px; }
-.login-form .logo { width: 64px; height: 64px; border-radius: 16px; background: var(--primary); color: #fff; display: grid; place-items: center; }
+.login-form > svg { display: block; border-radius: 18px; box-shadow: 0 4px 12px #0003; }
 .login-switch { margin-top: auto; text-align: center; }

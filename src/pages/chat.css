@@ -69,3 +69,4 @@
 
 /* El título "Asistente" queda visible al hacer scroll */
 .chat .app-header { position: sticky; top: 0; z-index: 10; background: var(--bg); }
+.chat .empty > svg { border-radius: 18px; box-shadow: 0 4px 12px #0003; }

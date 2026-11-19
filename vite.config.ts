@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['apple-touch-icon.png'],
+      includeAssets: ['apple-touch-icon.png', 'logo.svg'],
       manifest: {
         name: 'Tareas IA',
         short_name: 'Tareas IA',

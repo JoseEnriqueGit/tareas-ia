@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { supabase, errorMessage } from '../lib/supabase';
-import { CheckIcon } from '../components/Icons';
+import Logo from '../components/Logo';
 import './form.css';
 
 type Field = 'fullName' | 'email' | 'password';
@@ -82,7 +82,7 @@ export default function LoginPage() {
       <form onSubmit={submit} className="login-form" noValidate>
         {isLogin ? (
           <>
-            <div className="logo" aria-hidden="true"><CheckIcon size={34} /></div>
+            <Logo size={72} />
             <div>
               <h1>Tareas IA</h1>
               <p className="muted login-sub">Escribe lo que tienes pendiente y el asistente lo ordena.</p>
