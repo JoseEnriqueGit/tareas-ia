@@ -1,6 +1,6 @@
 {
   "title": "Pulido de UI móvil",
-  "brief": "Pulido de la interfaz móvil de Tareas IA (360 px): una sola propuesta para lista, asistente, formulario y filtros del supervisor, usando el sistema de diseño actual.",
+  "brief": "Pulido de la interfaz móvil de Tareas IA (360 px): una sola propuesta para todas las pantallas y estados, usando el sistema de diseño actual.",
   "feature": "odd/tasks/asistente-tareas.md",
   "artboards": [
     {
@@ -9,6 +9,13 @@
       "tradeoff": "Navegación y acciones abajo, filtros en una hoja y el estado como círculo: más rápido con una mano y más tareas a la vista; los filtros activos quedan un toque más lejos y la barra inferior ocupa 68 px fijos.",
       "width": 1720,
       "height": 1040
+    },
+    {
+      "file": "02-pantallas-y-estados.html",
+      "title": "Al alcance del pulgar: pantallas y estados",
+      "tradeoff": "Misma dirección que 01 aplicada a las 16 pantallas y estados restantes (acceso, cuenta, vistas, edición, validación, asignación, vacío, cargando, sin conexión, IA pensando y con error, dictado); no es una alternativa sino la cobertura completa.",
+      "width": 1720,
+      "height": 3800
     }
   ]
 }
