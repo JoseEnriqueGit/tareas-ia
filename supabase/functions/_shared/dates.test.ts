@@ -1,5 +1,5 @@
 import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
-import { addDays, dateContext, endOfWeek, isValidIsoDate, taskView, todayIn } from './dates.ts';
+import { addDays, dateContext, dayLabel, endOfWeek, isValidIsoDate, taskView, todayIn, UPCOMING_GROUPS, upcomingGroup } from './dates.ts';
 
 Deno.test('todayIn usa America/Santo_Domingo y no UTC cerca de medianoche', () => {
   // 03:30 UTC del 20 = 23:30 del 19 en Santo Domingo (UTC-4).
@@ -48,4 +48,25 @@ Deno.test('taskView clasifica en Hoy, Próximas, Vencidas y Completadas', () => 
   assertEquals(taskView({ status: 'pending', due_date: '2026-11-25' }, today), 'upcoming');
   assertEquals(taskView({ status: 'pending', due_date: null }, today), 'upcoming');
   assertEquals(taskView({ status: 'done', due_date: '2026-11-18' }, today), 'done');
+});
+
+Deno.test('dayLabel usa palabras: Hoy, Mañana, Ayer, día de la semana y "Hace N días"', () => {
+  const today = '2026-11-19'; // jueves
+  assertEquals(dayLabel('2026-11-19', today), 'Hoy');
+  assertEquals(dayLabel('2026-11-20', today), 'Mañana');
+  assertEquals(dayLabel('2026-11-18', today), 'Ayer');
+  assertEquals(dayLabel('2026-11-23', today), 'Lunes 23');
+  assertEquals(dayLabel('2026-11-16', today), 'Hace 3 días');
+  assertEquals(dayLabel('2026-12-05', today), '5 dic');
+  assertEquals(dayLabel('2026-11-01', today), '1 nov');
+});
+
+Deno.test('upcomingGroup agrupa Próximas por cercanía y deja "Sin fecha" al final', () => {
+  const today = '2026-11-19'; // jueves; la semana termina el domingo 22
+  assertEquals(upcomingGroup('2026-11-20', today), 'Mañana');
+  assertEquals(upcomingGroup('2026-11-22', today), 'Esta semana');
+  assertEquals(upcomingGroup('2026-11-29', today), 'Próxima semana');
+  assertEquals(upcomingGroup('2026-11-30', today), 'Más adelante');
+  assertEquals(upcomingGroup(null, today), 'Sin fecha');
+  assertEquals(UPCOMING_GROUPS.at(-1), 'Sin fecha');
 });

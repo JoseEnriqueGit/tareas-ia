@@ -77,3 +77,41 @@ export function taskView(task: { status: string; due_date: string | null }, toda
   if (task.due_date === today) return 'today';
   return 'upcoming';
 }
+
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+function daysBetween(from: string, to: string): number {
+  const toUtc = (iso: string) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((toUtc(to) - toUtc(from)) / 86_400_000);
+}
+
+/** Fecha límite en palabras para la interfaz: "Hoy", "Mañana", "Lunes 23", "Hace 3 días", "5 dic". */
+export function dayLabel(isoDate: string, today: string): string {
+  const diff = daysBetween(today, isoDate);
+  const day = Number(isoDate.slice(8, 10));
+  if (diff === 0) return 'Hoy';
+  if (diff === 1) return 'Mañana';
+  if (diff === -1) return 'Ayer';
+  if (diff > 1 && diff < 7) {
+    const name = weekdayName(isoDate);
+    return `${name[0].toUpperCase()}${name.slice(1)} ${day}`;
+  }
+  if (diff < 0 && diff > -7) return `Hace ${-diff} días`;
+  return `${day} ${MONTHS[Number(isoDate.slice(5, 7)) - 1]}`;
+}
+
+export const UPCOMING_GROUPS = ['Mañana', 'Esta semana', 'Próxima semana', 'Más adelante', 'Sin fecha'] as const;
+export type UpcomingGroup = (typeof UPCOMING_GROUPS)[number];
+
+/** Grupo de la vista Próximas (semanas de lunes a domingo). Sin fecha va al final. */
+export function upcomingGroup(isoDate: string | null, today: string): UpcomingGroup {
+  if (!isoDate) return 'Sin fecha';
+  if (isoDate === addDays(today, 1)) return 'Mañana';
+  const weekEnd = endOfWeek(today);
+  if (isoDate <= weekEnd) return 'Esta semana';
+  if (isoDate <= addDays(weekEnd, 7)) return 'Próxima semana';
+  return 'Más adelante';
+}

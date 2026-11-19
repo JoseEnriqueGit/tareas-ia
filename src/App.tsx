@@ -1,16 +1,18 @@
 import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
-import { signOut, useAuth } from './auth';
+import { useAuth } from './auth';
 import LoginPage from './pages/LoginPage';
 import TasksPage from './pages/TasksPage';
 import TaskFormPage from './pages/TaskFormPage';
 import ChatPage from './pages/ChatPage';
 import { useOnline } from './lib/useOnline';
+import { tasksSavedAtKey, timeOf } from './lib/format';
+import { ChatIcon, OfflineIcon, TasksIcon } from './components/Icons';
 
 export default function App() {
   const { session, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) return <p className="center muted">Cargando…</p>;
+  if (loading) return <p className="splash" role="status">Cargando…</p>;
 
   if (!session) {
     // RF-02: sin sesión, cualquier ruta lleva al login.
@@ -22,8 +24,12 @@ export default function App() {
     );
   }
 
+  // El formulario usa su propia barra fija de acciones, así que no lleva la barra inferior.
+  const showTabbar = !location.pathname.startsWith('/tareas/');
+
   return (
-    <Layout>
+    <>
+      <OfflineBanner userId={session.user.id} />
       <Routes>
         <Route path="/" element={<TasksPage />} />
         <Route path="/tareas/nueva" element={<TaskFormPage />} />
@@ -31,34 +37,31 @@ export default function App() {
         <Route path="/asistente" element={<ChatPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Layout>
+      {showTabbar && (
+        <nav className="tabbar" aria-label="Principal">
+          <NavLink to="/" end>
+            <TasksIcon />
+            Tareas
+          </NavLink>
+          <NavLink to="/asistente">
+            <ChatIcon />
+            Asistente
+          </NavLink>
+        </nav>
+      )}
+    </>
   );
 }
 
-function Layout({ children }: { children: React.ReactNode }) {
-  const { profile } = useAuth();
+/** RF-24: aviso sin conexión con la hora de las últimas tareas guardadas. */
+function OfflineBanner({ userId }: { userId: string }) {
   const online = useOnline();
+  if (online) return null;
+  const savedAt = localStorage.getItem(tasksSavedAtKey(userId));
   return (
-    <>
-      <header className="header">
-        <div className="header-row">
-          <strong className="user-name">
-            {profile?.full_name ?? 'Usuario'}
-            {profile?.role === 'supervisor' && <span className="badge">Supervisor</span>}
-          </strong>
-          <button className="btn-link" onClick={signOut}>
-            Cerrar sesión
-          </button>
-        </div>
-        <nav className="nav">
-          <NavLink to="/" end>
-            Tareas
-          </NavLink>
-          <NavLink to="/asistente">Asistente</NavLink>
-        </nav>
-      </header>
-      {!online && <div className="offline">Sin conexión: mostrando las últimas tareas cargadas.</div>}
-      <main className="main">{children}</main>
-    </>
+    <div className="offline" role="status">
+      <OfflineIcon />
+      {savedAt ? `Sin conexión · tareas de las ${timeOf(Number(savedAt))}` : 'Sin conexión: mostrando las últimas tareas cargadas.'}
+    </div>
   );
 }
