@@ -187,7 +187,7 @@ export default function ChatPage() {
             <div key={m.id} className="chat-row">
               {newDay && <p className="chat-day">{dayLabel(day, today)}, {timeOf(m.created_at)}</p>}
               <div className={`bubble ${m.role}${hasCards ? ' wide' : ''}`}>
-                <p className="bubble-text">{m.content}</p>
+                <p className="bubble-text">{withBold(m.content)}</p>
                 {m.meta && <ResultCards meta={m.meta} today={today} />}
                 {m.meta?.pendingDelete && index === (messages?.length ?? 0) - 1 && (
                   <div className="confirm-card">
@@ -308,4 +308,9 @@ function ResultCards({ meta, today }: { meta: Meta; today: string }) {
         ))}
     </>
   );
+}
+
+/** El modelo a veces responde con **negritas** de Markdown: se muestran como negrita en vez de asteriscos. */
+function withBold(text: string) {
+  return text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part));
 }

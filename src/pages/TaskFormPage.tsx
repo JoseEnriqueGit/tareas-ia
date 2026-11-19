@@ -24,7 +24,7 @@ type FieldErrors = Partial<Record<'title' | 'due_date', string>>;
 const EMPTY: Form = { title: '', description: '', due_date: '', priority: 'medium', status: 'pending' };
 const PRIORITIES: Priority[] = ['low', 'medium', 'high'];
 // Etiquetas cortas para que el control segmentado quepa en 360 px.
-const STATUSES: [Status, string][] = [['pending', 'Pendiente'], ['in_progress', 'En curso'], ['done', 'Hecha']];
+const STATUSES: [Status, string][] = [['pending', 'Pendiente'], ['in_progress', 'En progreso'], ['done', 'Hecha']];
 
 /** Fechas rápidas. "Viernes" es el próximo viernes; si hoy es viernes, el de la semana que viene (igual que el agente). */
 function quickDates(today: string): [string, string][] {

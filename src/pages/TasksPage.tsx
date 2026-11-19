@@ -377,7 +377,7 @@ function TaskRow({ task, today, online, showAssignee, onToggle }: RowProps) {
                 <span className={`dot ${task.priority}`} aria-hidden="true" />
                 {PRIORITY_LABEL[task.priority]}
               </span>
-              {task.status === 'in_progress' && <span className="state progress">{STATUS_LABEL.in_progress}</span>}
+              <span className={task.status === 'in_progress' ? 'state progress' : 'state'}>{STATUS_LABEL[task.status]}</span>
             </>
           )}
         </span>

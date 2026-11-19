@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 type Props = {
   title: string;
@@ -12,7 +13,8 @@ type Props = {
 
 /**
  * Hoja que sube desde abajo. Al abrir mueve el foco adentro; Escape o tocar el fondo la cierran,
- * y al cerrar el foco vuelve al control que la abrió.
+ * y al cerrar el foco vuelve al control que la abrió. Se pinta en <body> para quedar siempre
+ * encima, aunque la abra un elemento fijo o sticky.
  */
 export default function Sheet({ title, onClose, children, headerAction, role = 'dialog' }: Props) {
   const ref = useRef<HTMLElement>(null);
@@ -33,7 +35,7 @@ export default function Sheet({ title, onClose, children, headerAction, role = '
     };
   }, []);
 
-  return (
+  return createPortal(
     <>
       <div className="scrim" onClick={() => close.current()} aria-hidden="true" />
       <section ref={ref} className="sheet" role={role} aria-modal="true" aria-labelledby={titleId}>
@@ -44,6 +46,7 @@ export default function Sheet({ title, onClose, children, headerAction, role = '
         </div>
         {children}
       </section>
-    </>
+    </>,
+    document.body,
   );
 }
