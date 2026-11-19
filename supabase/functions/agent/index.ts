@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
         if (!reply && !hasActions()) throw new AiError('La IA devolvió una respuesta vacía.', 502);
         break;
       }
-      messages.push({ role: 'assistant', content: answer.content ?? null, tool_calls: answer.tool_calls });
+      messages.push({ ...answer, role: 'assistant' });
       for (const call of answer.tool_calls) {
         const result = await runTool(call.function.name, call.function.arguments, { db, userId, isSupervisor, actions });
         messages.push({ role: 'tool', tool_call_id: call.id, content: result });

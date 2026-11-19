@@ -16,8 +16,9 @@ export class AiError extends Error {
 
 // Parámetros que no todos los proveedores aceptan. Si uno los rechaza con un 400,
 // se ajustan y se recuerdan mientras la función siga caliente.
+// 'minimal' lo aceptan Gemini 3.x y los modelos de razonamiento de OpenAI; Gemini 3.5 rechaza 'none'.
 const options = {
-  reasoningEffort: 'none' as string | null,
+  reasoningEffort: 'minimal' as string | null,
   tokensParam: 'max_tokens' as 'max_tokens' | 'max_completion_tokens',
 };
 
@@ -50,17 +51,19 @@ export async function chatCompletion(messages: ChatMessage[], tools: unknown[]) 
       const json = await response.json().catch(() => null);
       const message = json?.choices?.[0]?.message;
       if (!message) throw new AiError('La IA devolvió una respuesta inválida.', 502);
-      return message as { content: string | null; tool_calls?: ToolCall[] };
+      // Se devuelve completo: Gemini 3 exige recibir de vuelta su `thought_signature` (extra_content).
+      return message as { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] };
     }
 
     const text = await response.text();
-    if (response.status === 400 && /reasoning/i.test(text) && options.reasoningEffort) {
-      // 'none' no existe en todos los modelos: se prueba 'minimal' y luego sin el parámetro.
-      options.reasoningEffort = options.reasoningEffort === 'none' ? 'minimal' : null;
-      continue;
-    }
     if (response.status === 400 && /max_tokens/.test(text) && options.tokensParam === 'max_tokens') {
       options.tokensParam = 'max_completion_tokens';
+      continue;
+    }
+    if (response.status === 400 && options.reasoningEffort) {
+      // Hay modelos sin razonamiento que rechazan el parámetro (a veces con un error genérico):
+      // se reintenta una vez sin él.
+      options.reasoningEffort = null;
       continue;
     }
     if (response.status === 429) {
