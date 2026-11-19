@@ -1,0 +1,293 @@
+Prueba técnica 1: Asistente de tareas con IA (PWA)
+
+ Prueba técnica 1: Asistente de tareas con IA
+ (PWA)
+
+     Nov 19, 2026
+
+ Objetivo y contexto
+
+  Construir en 8 horas o menos una PWA móvil donde una persona escribe en lenguaje
+  natural lo que tiene pendiente y un agente de IA crea y gestiona las tareas en una base de
+  datos Supabase.
+  Escenario: eres el apoyo de operaciones de una pequeña empresa. El equipo recibe
+  pedidos por mensaje, como "cobrarle a Juan el viernes y mandarle la cotización a Ana
+  mañana, urgente", y hoy se pierden en chats. Tu app debe convertir esos mensajes en
+  tareas ordenadas, consultables y con fecha.
+  La prueba mide cinco cosas: base de datos y seguridad, experiencia móvil y PWA,
+  integración de IA con herramientas (agente), criterio para priorizar y comunicación.
+
+ Reglas de la prueba
+
+       Tiempo máximo: 8 horas, incluidos 30 minutos iniciales para leer y escribir un plan.
+       Stack: libre en el frontend (React, Next, Vue, Svelte u otro). Es obligatorio usar
+       Supabase (Postgres y Auth) y publicar la app en una URL pública.
+       IA: puede usar asistentes de código (Claude, Cursor, Copilot). En la revisión final
+       deberá explicar cada parte de lo que entregó.
+       API de IA: Claude, OpenAI o Gemini. La llave nunca va en el código del navegador;
+       debe vivir en una Edge Function o backend.
+       Código: repositorio Git con commits frecuentes, no uno solo al final.
+       Preguntas: puede hacerle preguntas al evaluador en cualquier momento. Preguntar
+       bien suma puntos.
+       Alcance: es mejor hacer menos funciones y que funcionen que muchas a medias. Lo
+       que no alcance a hacer debe quedar anotado en el README.
+
+                                                                                                                                                                                                                                                      Page 1 of 7
+Prueba técnica 1: Asistente de tareas con IA (PWA)
+
+Requerimientos funcionales
+
+La app está completa cuando cumple todos los requerimientos Obligatorios. Los
+Deseables sirven para diferenciar a los candidatos.
+
+A. Cuentas y seguridad
+
+ID  Requerimiento                                   Criterio de aceptación            Prioridad
+                                                                                      Obligatorio
+RF- Registro e inicio de sesión con                 Un usuario nuevo se registra,     Obligatorio
+                                                    cierra sesión y vuelve a entrar   Obligatorio
+01  email y contraseña (Supabase
+                                                                                      Deseable
+    Auth)
+
+RF- Rutas protegidas                                Sin sesión, cualquier pantalla
+02                                                  redirige al login
+
+RF- Aislamiento de datos por usuario Con dos usuarios, A no puede
+
+03  con políticas RLS                               ver ni modificar tareas de B,
+
+                                                    tampoco llamando la API
+
+                                                    directamente
+
+RF- Perfil con nombre visible                       El nombre aparece en el
+04                                                  encabezado
+
+B. Gestión de tareas
+
+ID  Requerimiento                                   Criterio de aceptación            Prioridad
+
+RF- Crear tarea manual con título,                  Se guarda en Supabase y           Obligatorio
+05 descripción, fecha límite,                       aparece en la lista sin recargar
+
+           prioridad (baja, media, alta),
+           responsable y estado
+
+RF- Vistas Hoy, Próximas, Vencidas y Cada tarea cae en la vista                       Obligatorio
+
+06 Completadas                                      correcta según su fecha y estado
+
+RF- Editar y eliminar tareas                        Eliminar pide confirmación; los   Obligatorio
+07                                                  cambios persisten al recargar
+
+RF- Cambiar estado (pendiente, en                   El cambio se refleja de inmediato Obligatorio
+08 progreso, hecha) con un toque                    y se guarda
+
+                                                                                      Page 2 of 7
+Prueba técnica 1: Asistente de tareas con IA (PWA)
+
+ID  Requerimiento                                   Criterio de aceptación            Prioridad
+                                                    Los filtros se combinan entre sí  Deseable
+RF- Filtros por estado, prioridad y
+09 responsable, y búsqueda por
+
+           texto
+
+RF- Validación con mensajes claros                  Título vacío o fecha inválida     Obligatorio
+10                                                  muestran el error junto al campo  Deseable
+
+RF- Etiquetas o proyectos para                      Se puede filtrar por etiqueta
+
+11  agrupar tareas
+
+C. Asistente de IA (agente)
+
+ID  Requerimiento                                   Criterio de aceptación            Prioridad
+
+RF- Caja de chat donde se escribe en                "Recuérdame cobrarle a Juan       Obligatorio
+                                                    el viernes" crea una tarea con
+12  lenguaje natural                                título y fecha correctos
+
+RF- Varias tareas en un solo mensaje                "Cobrar a Juan el viernes y       Obligatorio
+13                                                  cotización a Ana mañana,
+                                                    urgente" crea 2 tareas, con la
+                                                    prioridad alta donde
+                                                    corresponde
+
+RF- El agente usa herramientas (tool                El modelo no escribe en la        Obligatorio
+                                                    base de datos; el backend
+14  calling): crear_tarea, listar_tareas,           ejecuta cada herramienta y
+                                                    valida sus parámetros
+    actualizar_tarea, completar_tarea
+
+RF- Consultas sobre las tareas                      "¿Qué tengo pendiente esta        Obligatorio
+                                                    semana?" responde con datos
+15  existentes                                      reales de la base, sin inventar
+
+RF- Modificaciones por chat                         "Marca como hecha la de           Obligatorio
+16                                                  Juan" funciona; si hay dos
+                                                    tareas de Juan, el agente
+                                                    pregunta cuál antes de actuar
+
+                                                                                      Page 3 of 7
+Prueba técnica 1: Asistente de tareas con IA (PWA)
+
+ID  Requerimiento                                   Criterio de aceptación              Prioridad
+                                                                                        Obligatorio
+RF- Confirmación antes de acciones                  Eliminar por chat pide
+                                                    confirmación; tras crear,           Obligatorio
+17  destructivas y resumen de lo                    muestra "Creé 2 tareas" con
+                                                    enlace a cada una                   Obligatorio
+    ejecutado                                                                           Deseable
+                                                    Si la API cae o responde algo       Deseable
+RF- Manejo de fallos de la IA                       inválido, se muestra un error
+18                                                  claro, se conserva el texto
+                                                    escrito y se puede reintentar
+RF- Fechas relativas en la zona horaria             o crear la tarea a mano
+
+19  del usuario (por defecto                        "Mañana" y "el viernes" se
+                                                    resuelven a la fecha correcta,
+    America/Santo_Domingo)                          incluso cerca de medianoche
+
+RF- Historial de la conversación                    Al reabrir la app se ve la
+20 guardado                                         conversación anterior
+
+RF- Dictado por voz (Web Speech API)                El botón de micrófono
+21                                                  convierte voz en texto en el
+                                                    chat
+
+D. Móvil y PWA
+
+ID  Requerimiento                                   Criterio de aceptación              Prioridad
+
+RF- Diseño mobile-first                             Usable en 360 px de ancho, con      Obligatorio
+22                                                  botones táctiles cómodos y sin
+                                                    scroll horizontal
+
+RF- App instalable: manifest con                    Se puede añadir a la pantalla de Obligatorio
+23 nombre, íconos 192 y 512 px y                    inicio y abre en modo standalone
+
+           color de tema
+
+RF- Service worker con soporte sin                  Sin red, la app abre y muestra las  Obligatorio
+24 conexión básico                                  últimas tareas cargadas con un
+                                                    aviso de "sin conexión"
+
+RF- Estados de carga, vacío y error en Ninguna pantalla queda en                        Obligatorio
+
+25 todas las pantallas                              blanco o congelada
+
+                                                                                        Page 4 of 7
+Prueba técnica 1: Asistente de tareas con IA (PWA)
+
+ID  Requerimiento                                   Criterio de aceptación             Prioridad
+                                                                                       Deseable
+RF- Recordatorios o notificaciones                  Llega una notificación al celular
+26 push de tareas por vencer                        antes de la fecha límite
+
+E. Despliegue y calidad
+
+ID  Requerimiento                                   Criterio de aceptación             Prioridad
+
+RF- Publicación en URL pública                      El evaluador abre el enlace desde Obligatorio
+                                                    su celular y la app funciona
+27  (Vercel, Netlify o similar)
+
+RF- Llaves de la IA fuera del                       No aparecen en el código ni en     Obligatorio
+28 navegador                                        las peticiones del cliente
+
+RF- Esquema de base de datos                        El SQL o las migraciones           Obligatorio
+29 versionado en el repositorio                     permiten recrear las tablas
+                                                    desde cero
+
+RF- Pruebas automáticas mínimas                     Al menos 3 pruebas sobre las       Deseable
+30                                                  herramientas del agente o el
+                                                    manejo de fechas
+
+Plan de tareas sugerido
+
+Los tiempos son una guía, no una obligación. El candidato decide su propio orden y se
+evalúa si lo justifica.
+
+Fase 0: plan (0:00 a 0:30)
+
+     Leer el brief y escribir un plan de una página con lo que hará y lo que dejará fuera
+     Crear el repositorio y el proyecto de Supabase
+     Escribir las dudas para el evaluador
+
+Fase 1: base (0:30 a 1:30)
+
+     Crear el proyecto frontend y conectar Supabase
+     Implementar registro, inicio de sesión y rutas protegidas (RF-01, RF-02)
+     Diseñar las tablas (por ejemplo tasks y chat_messages) y las políticas RLS (RF-03)
+
+                                                                                       Page 5 of 7
+Prueba técnica 1: Asistente de tareas con IA (PWA)
+
+ Fase 2: tareas manuales (1:30 a 3:30)
+
+       CRUD de tareas con validación (RF-05, RF-07, RF-10)
+       Vistas Hoy, Próximas, Vencidas y Completadas (RF-06)
+       Cambio de estado con un toque (RF-08)
+       Diseño mobile-first con estados de carga, vacío y error (RF-22, RF-25)
+
+ Fase 3: cambio sorpresa (3:30 a 4:00)
+
+       Recibir el cambio, estimar el impacto y avisar al evaluador qué hará y qué no
+
+ Fase 4: agente (4:00 a 6:30)
+
+       Edge Function o backend que recibe el mensaje y llama a la API de IA (RF-28)
+       Definir las herramientas del agente y ejecutarlas en el servidor con validación (RF-14)
+       Crear tareas desde texto, incluidas varias en un mensaje y fechas relativas (RF-12, RF-
+       13, RF-19)
+       Consultar y modificar tareas por chat, con pregunta ante ambigüedad y confirmación
+       al eliminar (RF-15, RF-16, RF-17)
+       Manejo de errores de la IA (RF-18)
+
+ Fase 5: PWA y despliegue (6:30 a 7:30)
+
+       Manifest, íconos y service worker con modo sin conexión básico (RF-23, RF-24)
+       Publicar en URL pública y probar la instalación en un celular real (RF-27)
+
+ Fase 6: cierre (7:30 a 8:00)
+
+       README con instrucciones, decisiones y lista de lo que quedó fuera
+       Video de 3 a 5 minutos mostrando la app en el celular
+       Crear dos usuarios de prueba para el evaluador
+
+ Cambio sorpresa
+
+  A las 3:30 h el evaluador entrega este mensaje, sin avisar antes: "El jefe quiere ver las
+  tareas de todo el equipo. Necesitamos un rol de supervisor que vea todas las tareas, se las
+  pueda asignar a otros usuarios y filtre por persona."
+  Alternativas si se quiere variar la prueba:
+
+                                                                                                                                                                                                                                                      Page 6 of 7
+Prueba técnica 1: Asistente de tareas con IA (PWA)
+
+       Tareas recurrentes (por ejemplo "todos los lunes").
+       Adjuntar una foto a una tarea con Supabase Storage.
+
+ Entregables
+
+    1. URL pública de la app, probada en un celular.
+    2. Repositorio Git con el historial de commits y el SQL o las migraciones de la base de
+
+       datos.
+    3. README con instrucciones para correrla, decisiones tomadas, y una lista honesta de
+
+       lo que quedó fuera.
+    4. Dos usuarios de prueba (con contraseña) para que el evaluador compruebe el
+
+       aislamiento de datos.
+    5. Video de 3 a 5 minutos mostrando la app instalada en el celular y una conversación con
+
+       el asistente.
+    6. Revisión en vivo de 20 minutos: el candidato explica una decisión técnica y hace un
+
+       cambio pequeño pedido por el evaluador.
+
+                                                                                                                                                                                                                                                      Page 7 of 7
+
