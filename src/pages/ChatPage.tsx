@@ -20,6 +20,7 @@ export default function ChatPage() {
 
   async function loadHistory() {
     setHistoryError('');
+    if (!navigator.onLine) return setHistoryError('Sin conexión. El asistente necesita internet.');
     const { data, error } = await supabase
       .from('chat_messages')
       .select('id, role, content, meta, created_at')

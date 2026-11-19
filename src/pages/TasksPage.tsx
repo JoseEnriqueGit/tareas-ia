@@ -27,7 +27,11 @@ export default function TasksPage() {
   const isSupervisor = profile?.role === 'supervisor';
   const team = useTeam(isSupervisor);
   const cacheKey = `tasks:${session!.user.id}`;
-  const [tasks, setTasks] = useState<Task[] | null>(null);
+  // Se pinta primero lo último guardado y luego se refresca: sin red la lista aparece al instante (RF-24).
+  const [tasks, setTasks] = useState<Task[] | null>(() => {
+    const cached = localStorage.getItem(cacheKey);
+    return cached ? (JSON.parse(cached) as Task[]) : null;
+  });
   const [error, setError] = useState('');
   const [view, setView] = useState<TaskView>('today');
   // Filtros combinables (RF-09); "responsable" es el filtro por persona del supervisor.
@@ -40,9 +44,6 @@ export default function TasksPage() {
     setError('');
     const { data, error } = await supabase.from('tasks').select(TASK_SELECT).order('due_date', { nullsFirst: false });
     if (error) {
-      // Sin red se muestran las últimas tareas guardadas (RF-24).
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) setTasks(JSON.parse(cached));
       setError(errorMessage(error));
       return;
     }

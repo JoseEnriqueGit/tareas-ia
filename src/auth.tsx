@@ -18,17 +18,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function load(session: Session | null) {
       if (!session) {
+        localStorage.removeItem(PROFILE_KEY);
         setState({ session: null, profile: null, loading: false });
         return;
       }
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, full_name, role')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      // Sin red se usa el último perfil guardado para no dejar el encabezado vacío (RF-24).
+      // Sin red se usa el último perfil guardado para no dejar el encabezado vacío ni esperar (RF-24).
       const raw = localStorage.getItem(PROFILE_KEY);
       const cached = raw ? (JSON.parse(raw) as Profile) : null;
+      const { data } = navigator.onLine
+        ? await supabase.from('profiles').select('id, full_name, role').eq('id', session.user.id).maybeSingle()
+        : { data: null };
       const profile = (data as Profile | null) ?? (cached?.id === session.user.id ? cached : null);
       if (data) localStorage.setItem(PROFILE_KEY, JSON.stringify(data));
       setState({ session, profile, loading: false });

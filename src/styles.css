@@ -33,11 +33,11 @@ p { margin: 0.25rem 0; }
 .offline { background: #fef3c7; color: #92400e; text-align: center; padding: 0.5rem; font-size: 0.9rem; }
 
 /* Botones (mínimo 44 px de alto para uso táctil) */
-.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 1rem;
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 0 1rem;
   border: 0; border-radius: 8px; background: var(--primary); color: #fff; font-size: 1rem; font-weight: 600;
   text-decoration: none; cursor: pointer; }
 .btn:disabled { opacity: 0.6; }
-.btn.small { min-height: 36px; font-size: 0.9rem; }
+.btn.small { min-height: 44px; font-size: 0.9rem; }
 .btn.secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
 .btn.danger { background: var(--danger); }
 .btn.danger-outline { background: #fff; color: var(--danger); border: 1px solid var(--danger); width: 100%; margin-top: 1.5rem; }
@@ -96,7 +96,7 @@ input:disabled { background: #f3f4f6; color: var(--muted); }
 .bubble .actions { margin-top: 0.5rem; }
 .action-links { margin-top: 0.5rem; font-size: 0.92rem; }
 .action-links ul { margin: 0.25rem 0 0; padding-left: 1.1rem; }
-.action-links a { color: var(--primary); display: inline-block; min-height: 32px; line-height: 32px; }
+.action-links a { color: var(--primary); display: inline-block; min-height: 44px; line-height: 44px; }
 .example { display: block; width: 100%; margin-top: 0.5rem; min-height: 44px; border: 1px dashed var(--border);
   background: #fff; border-radius: 8px; color: var(--text); font-size: 0.95rem; cursor: pointer; padding: 0.5rem; }
 .chat-input { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 0.5rem; padding: 0.6rem;
