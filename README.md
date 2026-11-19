@@ -80,7 +80,7 @@ En "Cómo se verificó":
 | RF-19 | Fechas en America/Santo_Domingo | Hecho | `npm test`: casos a las 23:30 locales (ya es otro día en UTC) y "el viernes" cuando hoy es viernes. |
 | RF-20 | Historial guardado *(deseable)* | Hecho | E2E: la conversación sigue al recargar. |
 | RF-21 | Dictado por voz *(deseable)* | Parcial | Botón con Web Speech API (`es-DO`), visible solo en navegadores compatibles. **No se probó con micrófono real.** |
-| RF-22 | Mobile-first 360 px | Hecho | E2E: sin scroll horizontal y objetivos táctiles de al menos 44 px en todas las pantallas. |
+| RF-22 | Mobile-first 360 px | Hecho | Rediseño «Al alcance del pulgar» (`design/ui-movil/`). E2E a 360 × 760 en 14 pantallas: sin scroll horizontal y objetivos táctiles de al menos 44 px. |
 | RF-23 | Instalable (manifest, íconos, tema) | Hecho | Manifest con 192/512, maskable, `standalone` y `theme_color`. **Falta instalarla en un celular real** (requiere la URL pública). |
 | RF-24 | Sin conexión básico | Hecho | E2E: sin red, el shell abre desde el service worker y en 0,2 s se ven las últimas tareas con el aviso "Sin conexión". |
 | RF-25 | Carga, vacío y error | Hecho | E2E con y sin red: ninguna pantalla en blanco ni congelada. |
@@ -135,6 +135,7 @@ En "Cómo se verificó":
   - El perfil quedaba guardado después de cerrar sesión.
   - Había objetivos táctiles de menos de 44 px.
   - La configuración del CLI de Supabase era incompatible con la v3.
+- **Diseño de la interfaz:** el agente hizo una crítica de la interfaz móvil y una propuesta en HTML con 20 pantallas y estados (`design/ui-movil/`). El dueño la aprobó y se implementó con tres agentes en paralelo, uno por pantalla. Después se verificó de punta a punta en el navegador, y esa prueba encontró una regresión (hojas tapadas por el chat) que se corrigió.
 - **Lo que decidió una persona:** el stack, las respuestas por defecto a las dudas y que no se publique sin autorización.
 
 ## Estructura

@@ -56,6 +56,13 @@ Cada decisión con su porqué y lo que se descartó. Sirve para explicar el proy
 Se desactivó para que el evaluador pueda probar RF-01 sin buzón. En producción real se activaría.
 
 ## 9. Interfaz
+- **Rediseño «Al alcance del pulgar»** (propuesta en `design/ui-movil/`, sistema de diseño en `design/system.md`):
+  - La navegación y las acciones van abajo (barra inferior y botón "+ Nueva"), donde llega el pulgar. Antes la franja azul de arriba ocupaba unos 100 px y "Cerrar sesión" era lo más visible.
+  - Los filtros pasan a una hoja inferior y quedan a la vista como fichas que se quitan con un toque. Así las tareas empiezan más arriba.
+  - El estado es un círculo de un toque, y la prioridad y el estado siempre llevan su palabra: nunca se comunican solo con color.
+  - Las fechas se muestran en palabras ("Hoy", "Mañana", "Lunes 23", "Hace 3 días"), calculadas en Santo Domingo con `dayLabel` y `upcomingGroup` de `dates.ts`, con pruebas.
+  - Las hojas (`Sheet`) se pintan en un portal sobre `<body>`. Si no, un encabezado sticky las dejaba debajo del composer del chat (lo detectó la prueba E2E).
+  - **Descartado:** un menú lateral (hamburguesa), porque esconde la navegación, y una librería de componentes, porque no hacía falta.
 - **Mobile-first a 360 px.** Todos los objetivos táctiles miden al menos 44 px.
 - **Un toque en la pastilla de estado** avanza Pendiente → En progreso → Hecha → Pendiente, con actualización optimista que se revierte si falla.
 - **Validación:** el formulario valida en el cliente y muestra el error junto al campo. La base también valida con `check`, así que los datos no dependen de la interfaz.

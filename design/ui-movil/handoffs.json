@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "chosen": "01-pulgar.html",
+  "handoffs": {
+    "01-pulgar.html": {
+      "status": "implemented",
+      "queued": false,
+      "sentAt": "2026-11-19T22:22:15.847Z",
+      "startedAt": "2026-11-19T22:22:19.816Z",
+      "implementedAt": "2026-11-19T22:45:37.053Z",
+      "feature": "odd/tasks/asistente-tareas.md",
+      "note": "01 y 02 implementados en React; E2E a 360 px con ego-lite: PASS (12 ítems + re-chequeos)",
+      "previewUrl": "http://127.0.0.1:4173/"
+    }
+  }
+}
