@@ -96,7 +96,7 @@ En "Cómo se verificó":
 
 **Impacto:** bajo, porque el esquema ya lo preveía (rol en `profiles`, responsable como FK y RLS con `is_supervisor()`). Solo hubo cambios de interfaz y del agente:
 - **Interfaz:** el formulario muestra el selector "Responsable" y la lista tiene el filtro "Todas las personas".
-- **Agente:** si quien escribe es supervisor, recibe la lista del equipo y puede asignar con `responsable_id` (por ejemplo "asígnale a Beto revisar el inventario"). Esta asignación por chat **no se probó en vivo**; las reglas de la base que la limitan sí.
+- **Agente:** si quien escribe es supervisor, recibe la lista del equipo y puede asignar con `responsable_id` (por ejemplo "asígnale a Beto revisar el inventario"). Probado en vivo: "Asígnale a Beto revisar el inventario el lunes" creó la tarea para Beto Gómez con fecha 2026-11-23.
 
 **Verificado:**
 - Por API: la supervisora ve y reasigna tareas ajenas y filtra por persona; Beto ve la tarea que le asignaron y le cambia el estado; un usuario normal no puede asignar a otros (lo impiden RLS y un trigger).

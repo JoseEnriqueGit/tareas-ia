@@ -34,7 +34,7 @@ export default function LoginPage() {
         {mode === 'register' && (
           <label>
             Nombre
-            <input value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" />
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" maxLength={80} />
           </label>
         )}
         <label>
