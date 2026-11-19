@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Sistema de diseño — Tareas IA</title>
+<style>
+  :root {
+    --primary: #2563eb; --danger: #dc2626; --text: #111827; --muted: #6b7280; --border: #e5e7eb; --bg: #f9fafb;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--text); background: var(--bg);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 48px; width: 1440px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 40px 0 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .note { color: var(--muted); margin: 0; }
+  .grid { display: flex; flex-wrap: wrap; gap: 14px; }
+  .swatch { width: 160px; border: 1px solid var(--border); border-radius: 8px; background: #fff; overflow: hidden; }
+  .chip { height: 64px; }
+  .swatch p { margin: 0; padding: 8px 10px; font-size: .8rem; }
+  .swatch code { color: var(--muted); }
+  .type p { margin: 6px 0; }
+  .space { display: flex; align-items: flex-end; gap: 24px; }
+  .space div { background: var(--primary); opacity: .25; }
+  .space span { display: block; font-size: .8rem; color: var(--muted); margin-top: 6px; }
+  .radius { display: flex; gap: 24px; }
+  .radius div { width: 120px; height: 64px; border: 2px solid var(--primary); display: grid; place-items: center; font-size: .8rem; background: #fff; }
+  .row { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 1rem; border: 0; border-radius: 8px;
+    background: var(--primary); color: #fff; font: inherit; font-size: 1rem; font-weight: 600; }
+  .btn.secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
+  .btn.danger { background: var(--danger); }
+  .status { min-height: 44px; min-width: 92px; border-radius: 999px; border: 1px solid var(--border); font: inherit; font-size: .78rem; font-weight: 600; background: #fff; }
+  .status.p { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+  .status.d { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+  .task { width: 340px; display: flex; gap: .6rem; align-items: center; background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--danger); border-radius: 8px; padding: .5rem; }
+  .task b { display: block; }
+  .task small { color: var(--muted); font-size: .82rem; }
+  input { font: inherit; font-size: 16px; padding: .65rem; min-height: 44px; border: 1px solid var(--border); border-radius: 8px; width: 260px; }
+  .err { color: var(--danger); font-size: .9rem; display: block; margin-top: 4px; }
+  .offline { background: #fef3c7; color: #92400e; padding: .5rem 1rem; border-radius: 8px; }
+  .error-box { border: 1px solid #fecaca; background: #fef2f2; color: #991b1b; border-radius: 8px; padding: .75rem; width: 300px; }
+  .bubble { max-width: 260px; padding: .6rem .8rem; border-radius: 12px; background: #fff; border: 1px solid var(--border); }
+  .bubble.u { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .fab { width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 2rem; display: grid; place-items: center; box-shadow: 0 4px 12px #0003; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tareas IA — sistema de diseño actual</h1>
+  <p class="note">Valores tomados de <code>src/styles.css</code>.</p>
+
+  <h2>Colores</h2>
+  <div class="grid">
+    <div class="swatch"><div class="chip" style="background:#2563eb"></div><p>--primary<br><code>#2563eb</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#dc2626"></div><p>--danger<br><code>#dc2626</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#111827"></div><p>--text<br><code>#111827</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#6b7280"></div><p>--muted<br><code>#6b7280</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#e5e7eb"></div><p>--border<br><code>#e5e7eb</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#f9fafb"></div><p>--bg<br><code>#f9fafb</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#f59e0b"></div><p>priority-medium<br><code>#f59e0b</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#10b981"></div><p>priority-low<br><code>#10b981</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#dbeafe"></div><p>status-progress-bg<br><code>#dbeafe</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#d1fae5"></div><p>status-done-bg<br><code>#d1fae5</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#fef3c7"></div><p>offline-bg<br><code>#fef3c7</code></p></div>
+    <div class="swatch"><div class="chip" style="background:#fef2f2"></div><p>error-bg<br><code>#fef2f2</code></p></div>
+  </div>
+
+  <h2>Tipografía</h2>
+  <div class="type">
+    <p style="font-size:1.35rem;font-weight:700">h1 · 1.35rem — Nueva tarea</p>
+    <p style="font-size:16px">Cuerpo · 16px — Cobrarle a Juan el viernes</p>
+    <p style="font-size:.82rem;color:#6b7280">Meta · 0.82rem — vie, 20 nov · Alta · Ana Pérez</p>
+    <p style="font-size:.75rem;color:#6b7280">Contador · 0.75rem — 3</p>
+  </div>
+
+  <h2>Espaciado</h2>
+  <div class="space">
+    <div><div style="width:8px;height:8px"></div><span>0.5rem</span></div>
+    <div><div style="width:14px;height:14px"></div><span>0.9rem</span></div>
+    <div><div style="width:16px;height:16px"></div><span>1rem</span></div>
+  </div>
+
+  <h2>Radios y sombra</h2>
+  <div class="radius">
+    <div style="border-radius:8px">8px</div>
+    <div style="border-radius:12px">12px</div>
+    <div style="border-radius:999px">999px</div>
+    <div class="fab" aria-hidden="true">+</div>
+  </div>
+
+  <h2>Componentes</h2>
+  <div class="row">
+    <div><button class="btn">Guardar</button> <button class="btn secondary">Cancelar</button> <button class="btn danger">Sí, eliminar</button></div>
+    <div><button class="status">Pendiente</button> <button class="status p">En progreso</button> <button class="status d">Hecha</button></div>
+  </div>
+  <div class="row" style="margin-top:20px">
+    <div class="task"><button class="status">Pendiente</button><div><b>Enviar cotización a Ana</b><small>vie, 20 nov · Alta</small></div></div>
+    <label>Título *<br><input aria-invalid="true" style="border-color:#dc2626"><span class="err">El título es obligatorio.</span></label>
+  </div>
+  <div class="row" style="margin-top:20px">
+    <div class="offline">Sin conexión: mostrando las últimas tareas cargadas.</div>
+    <div class="error-box">El asistente alcanzó su límite de uso por minuto.</div>
+    <div><div class="bubble u">Recuérdame cobrarle a Juan el viernes</div><div class="bubble" style="margin-top:8px">Tarea creada: Cobrarle a Juan.</div></div>
+  </div>
+</main>
+</body>
+</html>

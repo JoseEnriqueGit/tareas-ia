@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1720">
+<title>Propuesta: Tareas IA al alcance del pulgar</title>
+<style>
+  :root {
+    --primary: #2563eb; --danger: #dc2626; --text: #111827; --muted: #6b7280; --border: #e5e7eb; --bg: #f9fafb;
+    --surface: #fff; --medium: #f59e0b; --low: #10b981;
+    --progress-bg: #dbeafe; --progress-text: #1e40af; --done-bg: #d1fae5; --done-text: #065f46;
+    --error-bg: #fef2f2; --error-border: #fecaca; --error-text: #991b1b;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: var(--text);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e5e7eb; padding: 40px 44px; width: 1720px; }
+  .board-title { margin: 0 0 4px; font-size: 1.5rem; }
+  .board-note { margin: 0 0 28px; color: var(--text); max-width: 980px; }
+  .screens { display: flex; gap: 40px; align-items: flex-start; }
+  figure { margin: 0; width: 360px; }
+  figcaption { font-size: .9rem; color: var(--text); margin-bottom: 10px; min-height: 84px; }
+  figcaption b { display: block; color: var(--text); font-size: 1rem; margin-bottom: 2px; }
+
+  /* Marco de teléfono: 360 x 760 CSS px */
+  .phone { position: relative; width: 360px; height: 760px; background: var(--bg); border-radius: 28px; overflow: hidden;
+    box-shadow: 0 4px 12px #0003; display: flex; flex-direction: column; }
+  .scroll { flex: 1; overflow: hidden; padding: 0 16px 16px; }
+
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* Encabezado claro con saludo (RF-04) */
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 20px 16px 12px; }
+  .hello { margin: 0; font-size: 1.35rem; font-weight: 700; }
+  .date { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+  .avatar { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--primary); color: #fff; font-weight: 600; font-size: .95rem; }
+  .role { display: inline-block; margin-left: 6px; font-size: .7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    background: var(--progress-bg); color: var(--progress-text); vertical-align: middle; }
+
+  /* Vistas: control segmentado */
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--border); border-radius: 12px; padding: 4px; gap: 2px; }
+  .seg button { min-height: 44px; border: 0; border-radius: 8px; background: transparent; font-size: .8rem; font-weight: 600; color: var(--text);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; }
+  .seg button[aria-selected="true"] { background: var(--surface); color: var(--text); outline: 1px solid var(--border); }
+  .seg .n { font-size: .75rem; font-weight: 500; color: var(--text); }
+  .seg .n.alert { color: var(--danger); font-weight: 700; }
+
+  .searchrow { display: flex; gap: 8px; margin: 12px 0; }
+  .search { flex: 1; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; color: var(--muted); }
+  .search input { border: 0; outline: 0; background: transparent; font-size: 16px; width: 100%; color: var(--text); }
+  .filterbtn { min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+    display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: .9rem; }
+  .dot-count { min-width: 20px; height: 20px; border-radius: 999px; background: var(--primary); color: #fff; font-size: .72rem; display: grid; place-items: center; padding: 0 6px; }
+
+  .group-title { margin: 16px 2px 6px; font-size: .78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .list li { display: flex; align-items: center; gap: 4px; padding: 4px 12px 4px 4px; min-height: 64px; }
+  .list li + li { border-top: 1px solid var(--border); }
+
+  /* Control de estado: círculo con 44 px de área táctil, más la etiqueta escrita en la línea de meta */
+  .check { width: 44px; height: 44px; flex: 0 0 44px; border: 0; background: transparent; display: grid; place-items: center; }
+  .check svg { width: 26px; height: 26px; }
+  .tbody { flex: 1; min-width: 0; text-decoration: none; color: inherit; padding: 8px 0; }
+  .tt { display: block; font-weight: 600; font-size: 1rem; line-height: 1.3; }
+  .tt.done { color: var(--muted); text-decoration: line-through; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; font-size: .82rem; color: var(--muted); align-items: center; }
+  .meta .late { color: var(--danger); font-weight: 600; }
+  .prio { display: inline-flex; align-items: center; gap: 4px; }
+  .prio i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .prio.high { color: var(--danger); font-weight: 600; }
+  .prio.high i { background: var(--danger); }
+  .prio.medium i { background: var(--medium); }
+  .prio.low i { background: var(--low); }
+  .state { font-weight: 600; }
+  .state.progress { color: var(--progress-text); }
+  .who { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; background: var(--progress-bg); color: var(--progress-text);
+    font-size: .7rem; font-weight: 700; display: grid; place-items: center; }
+
+  .overdue { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; margin-top: 12px; padding: 0 12px;
+    background: var(--error-bg); border: 1px solid var(--error-border); border-radius: 12px; color: var(--error-text); font-size: .9rem; font-weight: 600; text-decoration: none; }
+
+  /* Botón flotante extendido */
+  .fab { position: absolute; right: 16px; bottom: 84px; min-height: 56px; padding: 0 20px 0 16px; border: 0; border-radius: 999px;
+    background: var(--primary); color: #fff; font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px #0003; }
+
+  /* Barra inferior, al alcance del pulgar */
+  .tabbar { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border-top: 1px solid var(--border); padding-bottom: 8px; }
+  .tabbar a { min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none;
+    color: var(--muted); font-size: .78rem; font-weight: 600; }
+  .tabbar a[aria-current="page"] { color: var(--primary); }
+  .tabbar svg { width: 24px; height: 24px; }
+
+  /* Chat */
+  .bar { display: flex; align-items: center; gap: 8px; padding: 14px 16px 10px; }
+  .bar h2 { margin: 0; font-size: 1.2rem; }
+  .bar p { margin: 0; font-size: .8rem; color: var(--muted); }
+  .back { width: 44px; height: 44px; border: 0; background: transparent; border-radius: 50%; display: grid; place-items: center; margin-left: -10px; }
+  .msgs { display: flex; flex-direction: column; gap: 10px; }
+  .day { align-self: center; font-size: .75rem; color: var(--muted); }
+  .b { max-width: 86%; padding: 10px 12px; border-radius: 16px; font-size: .95rem; line-height: 1.4; }
+  .b.me { align-self: flex-end; background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
+  .b.wide { width: 86%; }
+  .scroll.end { display: flex; flex-direction: column; justify-content: flex-end; }
+  .b.ai { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .result { margin-top: 8px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .result h3 { margin: 0; padding: 8px 10px; font-size: .82rem; background: var(--done-bg); color: var(--done-text); display: flex; align-items: center; gap: 6px; }
+  .result a { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 6px 10px; text-decoration: none; color: var(--text); }
+  .result a + a { border-top: 1px solid var(--border); }
+  .result a > span:first-child { flex: 1; min-width: 0; }
+  .result b { display: block; font-size: .92rem; }
+  .result small { color: var(--muted); font-size: .8rem; }
+  .confirm { margin-top: 8px; padding: 10px; border: 1px solid var(--error-border); background: var(--error-bg); border-radius: 12px; }
+  .confirm p { margin: 0 0 8px; font-size: .9rem; color: var(--error-text); }
+  .btns { display: flex; gap: 8px; }
+  .btn { flex: 1; min-height: 44px; border-radius: 8px; border: 0; font-weight: 700; font-size: .95rem; }
+  .btn.primary { background: var(--primary); color: #fff; }
+  .btn.danger { background: var(--danger); color: #fff; }
+  .btn.ghost { background: var(--surface); border: 1px solid var(--border); }
+  .chips { display: flex; gap: 8px; overflow: hidden; padding: 8px 16px 0; }
+  .chip { flex: 0 0 auto; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: .85rem; color: var(--text); }
+  .composer { display: flex; align-items: flex-end; gap: 8px; padding: 8px 12px 10px; }
+  .field { flex: 1; display: flex; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 2px 4px 2px 14px; min-height: 48px; }
+  .field textarea { flex: 1; border: 0; outline: 0; resize: none; font-size: 16px; background: transparent; padding: 10px 0; height: 44px; }
+  .mic { width: 44px; height: 44px; border: 0; background: transparent; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+  .send { width: 48px; height: 48px; border: 0; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; }
+
+  /* Formulario */
+  .form { display: flex; flex-direction: column; gap: 16px; }
+  .lbl { font-size: .9rem; font-weight: 600; margin-bottom: 6px; display: block; }
+  .opt { color: var(--muted); font-weight: 400; }
+  .inp { width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 16px; }
+  .inp.big { font-size: 1.1rem; font-weight: 600; }
+  textarea.inp { min-height: 72px; resize: none; }
+  .quick { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .quick button { min-height: 40px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-size: .85rem; font-weight: 600; }
+  .quick button[aria-pressed="true"] { background: var(--progress-bg); border-color: var(--primary); color: var(--progress-text); }
+  .segctl { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+  .segctl button { min-height: 44px; border: 0; background: transparent; font-weight: 600; font-size: .9rem; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .segctl button + button { border-left: 1px solid var(--border); }
+  .segctl button[aria-checked="true"] { background: var(--primary); color: #fff; }
+  .segctl button[aria-checked="true"] i { box-shadow: 0 0 0 2px #fff; }
+  .segctl i { width: 8px; height: 8px; border-radius: 50%; }
+  .owner { display: flex; align-items: center; gap: 10px; min-height: 48px; color: var(--text); font-size: .95rem; }
+  .owner .who { width: 32px; height: 32px; flex-basis: 32px; }
+  .stickybar { padding: 12px 16px 14px; background: var(--surface); border-top: 1px solid var(--border); display: flex; gap: 8px; }
+  .stickybar .btn { min-height: 48px; }
+
+  /* Hoja de filtros (supervisor) */
+  .scrim { position: absolute; inset: 0; background: rgba(17, 24, 39, .45); }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface); border-radius: 20px 20px 0 0; padding: 8px 16px 14px; }
+  .grab { width: 40px; height: 4px; background: var(--border); border-radius: 999px; margin: 0 auto 10px; }
+  .sheet h2 { margin: 0 0 4px; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center; }
+  .sheet h2 button { border: 0; background: none; color: var(--primary); font-weight: 600; font-size: .9rem; min-height: 44px; padding: 0 4px; }
+  .sheet h3 { margin: 12px 0 8px; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opts button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); font-weight: 600; font-size: .88rem;
+    display: inline-flex; align-items: center; gap: 6px; }
+  .opts button[aria-pressed="true"] { background: var(--progress-bg); border-color: var(--primary); color: var(--progress-text); }
+  .sheet .btn { width: 100%; margin-top: 16px; min-height: 48px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<h1 class="board-title">Propuesta: «Al alcance del pulgar»</h1>
+<p class="board-note">Navegación abajo, encabezado liviano con saludo, filtros en una hoja que se abre desde abajo, el estado como un círculo de un toque, fechas en palabras y resultados del asistente como tarjetas de tareas. Usa los colores, radios y la tipografía de sistema que ya tiene la app.</p>
+
+<div class="screens">
+
+  <!-- 1. Lista de tareas -->
+  <figure>
+    <figcaption><b>1 · Tareas (Hoy)</b>Saludo con nombre (RF-04), vistas en control segmentado, búsqueda + «Filtros», aviso de vencidas y filas agrupadas.</figcaption>
+    <div class="phone" role="img" aria-label="Pantalla de tareas">
+      <header class="top">
+        <div>
+          <h2 class="hello">Hola, Ana</h2>
+          <p class="date">Jueves 19 de noviembre</p>
+        </div>
+        <button class="avatar" aria-label="Cuenta de Ana Pérez: cerrar sesión">AP</button>
+      </header>
+      <div class="scroll">
+        <div class="seg" role="tablist" aria-label="Vistas">
+          <button role="tab" aria-selected="true">Hoy<span class="n">3</span></button>
+          <button role="tab" aria-selected="false">Próximas<span class="n">5</span></button>
+          <button role="tab" aria-selected="false">Vencidas<span class="n alert">1</span></button>
+          <button role="tab" aria-selected="false">Hechas<span class="n">2</span></button>
+        </div>
+        <div class="searchrow">
+          <label class="search">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span class="sr">Buscar</span><input placeholder="Buscar tareas">
+          </label>
+          <button class="filterbtn" aria-label="Filtros (ninguno activo)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtros
+          </button>
+        </div>
+
+        <a class="overdue" href="#">1 tarea vencida · Pagar la luz (ayer) <span aria-hidden="true">›</span></a>
+
+        <h3 class="group-title">Hoy</h3>
+        <ul class="list">
+          <li>
+            <button class="check" aria-label="Pendiente. Tocar para pasar a En progreso">
+              <svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="#6b7280" stroke-width="2"/></svg>
+            </button>
+            <a class="tbody" href="#"><span class="tt">Enviar cotización a Ana</span>
+              <span class="meta"><span>Hoy</span><span class="prio high"><i></i>Alta</span><span>Pendiente</span></span></a>
+          </li>
+          <li>
+            <button class="check" aria-label="En progreso. Tocar para marcar como Hecha">
+              <svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="#2563eb" stroke-width="2"/><path d="M13 2a11 11 0 0 1 0 22z" fill="#2563eb"/></svg>
+            </button>
+            <a class="tbody" href="#"><span class="tt">Cobrarle a Juan</span>
+              <span class="meta"><span>Hoy</span><span class="prio medium"><i></i>Media</span><span class="state progress">En progreso</span></span></a>
+          </li>
+          <li>
+            <button class="check" aria-label="Hecha. Tocar para volver a Pendiente">
+              <svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="#065f46"/><path d="m8 13.5 3.2 3.2L18.5 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <a class="tbody" href="#"><span class="tt done">Llamar a Pedro</span>
+              <span class="meta"><span>Hoy</span><span class="prio low"><i></i>Baja</span><span>Hecha</span></span></a>
+          </li>
+        </ul>
+      </div>
+      <button class="fab"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Nueva</button>
+      <nav class="tabbar" aria-label="Principal">
+        <a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/></svg>Tareas</a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M9 10h6"/></svg>Asistente</a>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- 2. Asistente -->
+  <figure>
+    <figcaption><b>2 · Asistente</b>Resultados como tarjetas tocables con fecha en palabras, confirmación de borrado dentro del chat, sugerencias y micrófono junto al campo.</figcaption>
+    <div class="phone" role="img" aria-label="Pantalla del asistente">
+      <header class="bar">
+        <div><h2>Asistente</h2><p>Escribe o dicta lo que tienes pendiente</p></div>
+      </header>
+      <div class="scroll end">
+        <div class="msgs">
+          <span class="day">Hoy, 10:42</span>
+          <div class="b me">Cobrar a Juan el viernes y cotización a Ana mañana, urgente</div>
+          <div class="b ai wide">Listo, las anoté.
+            <div class="result">
+              <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>Creé 2 tareas</h3>
+              <a href="#"><span><b>Cobrar a Juan</b><small>Viernes 20 nov · Media</small></span><span aria-hidden="true">›</span></a>
+              <a href="#"><span><b>Enviar cotización a Ana</b><small>Mañana · <span style="color:#dc2626;font-weight:600">Alta</span></small></span><span aria-hidden="true">›</span></a>
+            </div>
+          </div>
+          <div class="b me">Elimina la de Ana</div>
+          <div class="b ai wide">¿Eliminar esta tarea? No se puede deshacer.
+            <div class="confirm">
+              <p><b>Enviar cotización a Ana</b> · Mañana</p>
+              <div class="btns"><button class="btn danger">Sí, eliminar</button><button class="btn ghost">Cancelar</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chips" aria-label="Sugerencias">
+        <button class="chip">¿Qué tengo esta semana?</button>
+        <button class="chip">Marca como hecha…</button>
+      </div>
+      <form class="composer" onsubmit="return false">
+        <label class="field"><span class="sr">Mensaje para el asistente</span>
+          <textarea placeholder="Recuérdame…"></textarea>
+          <button type="button" class="mic" aria-label="Dictar por voz"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+        </label>
+        <button class="send" aria-label="Enviar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+      </form>
+      <nav class="tabbar" aria-label="Principal">
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/></svg>Tareas</a>
+        <a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M9 10h6"/></svg>Asistente</a>
+      </nav>
+    </div>
+  </figure>
+
+  <!-- 3. Formulario -->
+  <figure>
+    <figcaption><b>3 · Nueva tarea</b>Fechas rápidas (Hoy, Mañana, Viernes), prioridad y estado de un toque, responsable como texto y «Guardar» fijo abajo.</figcaption>
+    <div class="phone" role="img" aria-label="Formulario de nueva tarea">
+      <header class="bar">
+        <button class="back" aria-label="Volver"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>
+        <h2>Nueva tarea</h2>
+      </header>
+      <div class="scroll">
+        <form class="form" onsubmit="return false">
+          <div><label class="lbl" for="t">Título</label><input id="t" class="inp big" value="Cobrarle a Juan"></div>
+          <div><label class="lbl" for="d">Descripción <span class="opt">(opcional)</span></label><textarea id="d" class="inp">Factura de octubre</textarea></div>
+          <div>
+            <span class="lbl">Fecha límite <span class="opt">(opcional)</span></span>
+            <div class="quick">
+              <button type="button" aria-pressed="false">Hoy</button>
+              <button type="button" aria-pressed="false">Mañana</button>
+              <button type="button" aria-pressed="true">Viernes 20</button>
+              <button type="button" aria-pressed="false">Sin fecha</button>
+            </div>
+            <input class="inp" type="text" value="20/11/2026" aria-label="Otra fecha">
+          </div>
+          <div>
+            <span class="lbl" id="p">Prioridad</span>
+            <div class="segctl" role="radiogroup" aria-labelledby="p">
+              <button type="button" role="radio" aria-checked="false"><i style="background:#10b981"></i>Baja</button>
+              <button type="button" role="radio" aria-checked="true"><i style="background:#f59e0b"></i>Media</button>
+              <button type="button" role="radio" aria-checked="false"><i style="background:#dc2626"></i>Alta</button>
+            </div>
+          </div>
+          <div>
+            <span class="lbl" id="s">Estado</span>
+            <div class="segctl" role="radiogroup" aria-labelledby="s">
+              <button type="button" role="radio" aria-checked="true">Pendiente</button>
+              <button type="button" role="radio" aria-checked="false">En curso</button>
+              <button type="button" role="radio" aria-checked="false">Hecha</button>
+            </div>
+          </div>
+          <div class="owner"><span class="who">AP</span>Responsable: <b>Ana Pérez (tú)</b></div>
+        </form>
+      </div>
+      <div class="stickybar"><button class="btn ghost" style="flex:0 0 112px">Cancelar</button><button class="btn primary">Guardar tarea</button></div>
+    </div>
+  </figure>
+
+  <!-- 4. Supervisor: hoja de filtros -->
+  <figure>
+    <figcaption><b>4 · Supervisora: filtros</b>Una hoja inferior reúne estado, prioridad y persona; muestra cuántas tareas quedan antes de aplicar.</figcaption>
+    <div class="phone" role="img" aria-label="Hoja de filtros de la supervisora">
+      <header class="top">
+        <div>
+          <h2 class="hello">Hola, Carla<span class="role">Supervisora</span></h2>
+          <p class="date">Jueves 19 de noviembre · equipo</p>
+        </div>
+        <button class="avatar" aria-label="Cuenta de Carla Jefa: cerrar sesión">CJ</button>
+      </header>
+      <div class="scroll">
+        <div class="seg" role="tablist" aria-label="Vistas">
+          <button role="tab" aria-selected="false">Hoy<span class="n">4</span></button>
+          <button role="tab" aria-selected="true">Próximas<span class="n">9</span></button>
+          <button role="tab" aria-selected="false">Vencidas<span class="n">0</span></button>
+          <button role="tab" aria-selected="false">Hechas<span class="n">6</span></button>
+        </div>
+        <ul class="list" style="margin-top:12px">
+          <li><button class="check" aria-label="Pendiente"><svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="#6b7280" stroke-width="2"/></svg></button>
+            <a class="tbody" href="#"><span class="tt">Revisar el inventario</span><span class="meta"><span>Lunes 23</span><span class="prio medium"><i></i>Media</span></span></a><span class="who" title="Beto Gómez">BG</span></li>
+          <li><button class="check" aria-label="Pendiente"><svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="#6b7280" stroke-width="2"/></svg></button>
+            <a class="tbody" href="#"><span class="tt">Cobrar a Juan</span><span class="meta"><span>Viernes 20</span><span class="prio medium"><i></i>Media</span></span></a><span class="who" title="Ana Pérez">AP</span></li>
+        </ul>
+      </div>
+      <div class="scrim" aria-hidden="true"></div>
+      <section class="sheet" role="dialog" aria-label="Filtros">
+        <div class="grab" aria-hidden="true"></div>
+        <h2>Filtros <button>Limpiar</button></h2>
+        <h3>Persona</h3>
+        <div class="opts">
+          <button aria-pressed="false">Todas</button>
+          <button aria-pressed="true"><span class="who" style="width:24px;height:24px;flex-basis:24px">AP</span>Ana Pérez</button>
+          <button aria-pressed="false"><span class="who" style="width:24px;height:24px;flex-basis:24px">BG</span>Beto Gómez</button>
+        </div>
+        <h3>Estado</h3>
+        <div class="opts">
+          <button aria-pressed="true">Pendiente</button><button aria-pressed="false">En curso</button><button aria-pressed="false">Hecha</button>
+        </div>
+        <h3>Prioridad</h3>
+        <div class="opts">
+          <button aria-pressed="false"><i style="width:8px;height:8px;border-radius:50%;background:#dc2626"></i>Alta</button>
+          <button aria-pressed="false"><i style="width:8px;height:8px;border-radius:50%;background:#f59e0b"></i>Media</button>
+          <button aria-pressed="false"><i style="width:8px;height:8px;border-radius:50%;background:#10b981"></i>Baja</button>
+        </div>
+        <button class="btn primary">Ver 3 tareas</button>
+      </section>
+    </div>
+  </figure>
+
+</div>
+</body>
+</html>

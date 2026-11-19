@@ -1,0 +1,14 @@
+{
+  "title": "Pulido de UI móvil",
+  "brief": "Pulido de la interfaz móvil de Tareas IA (360 px): una sola propuesta para lista, asistente, formulario y filtros del supervisor, usando el sistema de diseño actual.",
+  "feature": "odd/tasks/asistente-tareas.md",
+  "artboards": [
+    {
+      "file": "01-pulgar.html",
+      "title": "Al alcance del pulgar",
+      "tradeoff": "Navegación y acciones abajo, filtros en una hoja y el estado como círculo: más rápido con una mano y más tareas a la vista; los filtros activos quedan un toque más lejos y la barra inferior ocupa 68 px fijos.",
+      "width": 1720,
+      "height": 1040
+    }
+  ]
+}
