@@ -4,6 +4,7 @@
 -- antes de cualquier acción, la función borra su reserva: para eso cada usuario puede
 -- borrar solo sus propios mensajes. Se puede volver a ejecutar.
 
+-- Índice parcial: solo los mensajes del usuario reservan; la respuesta del asistente lleva el mismo clientId sin chocar.
 create unique index if not exists chat_messages_user_client_id_key
   on public.chat_messages (user_id, (meta ->> 'clientId'))
   where role = 'user' and meta ? 'clientId';

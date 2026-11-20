@@ -1,3 +1,4 @@
+// Sesión y perfil de la app, con modo sin conexión (RF-24) y cierre de sesión que funciona aun sin red.
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, type Profile } from './lib/supabase';
@@ -18,6 +19,7 @@ const INITIAL: AuthState = { session: null, profile: null, loading: true, offlin
 
 const AuthContext = createContext<AuthState>(INITIAL);
 
+// El perfil se guarda para mostrar nombre y rol sin red; se borra al salir (clearOfflineData).
 const PROFILE_KEY = 'profile';
 const SESSION_KEY = authStorageKey(import.meta.env.VITE_SUPABASE_URL);
 // Con red pero sin poder renovar el token (servidor caído, o auth-js aún en su pausa tras un fallo), se reintenta.
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(INITIAL);
 
   useEffect(() => {
+    // `offline` es una variable y no estado para que los listeners lean siempre el valor actual.
     let disposed = false;
     let offline = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
@@ -58,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState({ session, profile, loading: false, offline: false });
         return;
       }
+      // Solo lectura: sin token no se pueden escribir cambios, pero se ve lo guardado.
       // Token vencido sin red: supabase-js no da sesión pero la deja guardada; se abre en solo lectura (S14.4).
       const stored = readStoredUser(localStorage, SESSION_KEY, Date.now());
       if (stored && decideWithoutSession({ online: navigator.onLine, stored, error }) === 'offline') {
@@ -87,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (offline) recover();
     }
 
+    // Permite que signOut() fuerce el login cuando auth-js no emitió SIGNED_OUT.
     forceSignedOut = () => {
       clearTimeout(retry);
       offline = false;
@@ -121,6 +126,7 @@ export function useAuth() {
 }
 
 export async function signOut() {
+  // Primero se borran los datos locales: aunque la salida remota falle, nada queda en el dispositivo.
   clearOfflineData();
   // Sin red la salida global falla y deja la sesión guardada: se cierra al menos en este dispositivo.
   if (!(await trySignOut('global'))) await trySignOut('local');

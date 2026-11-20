@@ -112,6 +112,7 @@ export type StoredMessage = {
 /** Tareas que la app mostró como tarjetas bajo una respuesta, en el mismo orden que ChatPage. */
 function shownTasks(meta: StoredMessage['meta']): TaskRef[] {
   if (!meta) return [];
+  // Si hubo acciones se muestran esas tarjetas; si no, las listadas (igual que la interfaz).
   const acted = [...(meta.created ?? []), ...(meta.completed ?? []), ...(meta.updated ?? [])];
   if (meta.pendingDelete) acted.push(meta.pendingDelete);
   return acted.length ? acted : (meta.listed ?? []);
@@ -136,6 +137,7 @@ export function historyForModel(
   currentMessage: string,
 ): { role: 'user' | 'assistant'; content: string }[] {
   const messages: { role: 'user' | 'assistant'; content: string }[] = [];
+  // La nota de la respuesta anterior espera al siguiente mensaje del usuario y se consume ahí.
   let note = '';
   const pushUser = (content: string) => {
     messages.push({ role: 'user', content: note ? `${note}\n${content}` : content });
@@ -177,6 +179,7 @@ export function stripInternalNotes(text: string): string {
     const after = out.slice(end);
     const head = before.trimEnd();
     const tail = after.trimStart();
+    // Se conserva el salto de párrafo que había alrededor de la nota (máximo uno doble) para no pegar textos.
     const lineBreaks = (s: string) => s.split('\n').length - 1;
     const breaks = Math.min(2, Math.max(lineBreaks(before.slice(head.length)), lineBreaks(after.slice(0, after.length - tail.length))));
     const separator = !head || !tail ? '' : breaks ? '\n'.repeat(breaks) : ' ';

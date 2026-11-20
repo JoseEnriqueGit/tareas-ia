@@ -34,6 +34,7 @@ const UNIQUE_VIOLATION = '23505';
  */
 export function decideOnConflict(reservation: SavedMessage, reply: SavedMessage | null, now: Date): Outcome {
   if (reply) return { status: 200, body: { messages: [reservation, reply], replayed: true } };
+  // Reserva reciente = otra petición sigue ejecutando; vieja = murió sin responder (no se reprocesa).
   const age = now.getTime() - Date.parse(reservation.created_at);
   return { status: 409, body: age < PROCESSING_WINDOW_MS ? PROCESSING : STALE };
 }
@@ -77,11 +78,13 @@ export async function handleWithReservation(
   clock: () => Date = () => new Date(),
 ): Promise<Outcome> {
   const { userId, clientId, message } = input;
+  // Reservar primero: si dos peticiones llegan a la vez, solo una inserta y la otra choca con 23505.
   const { data: reserved, error } = await db
     .from('chat_messages')
     .insert({ user_id: userId, role: 'user', content: message, meta: { clientId } })
     .select(MESSAGE_COLUMNS)
     .single();
+  // 23505 = ya existe esa reserva: se consulta su estado en vez de ejecutar de nuevo.
   if (error?.code === UNIQUE_VIOLATION) return lookUp(db, userId, clientId, clock());
   if (error || !reserved) {
     if (error) console.error('chat reservation error', error.message);
@@ -90,6 +93,7 @@ export async function handleWithReservation(
   const reservation = reserved as SavedMessage;
 
   const result = await run();
+  // Solo se libera si no se ejecutó nada; con acciones hechas, liberar permitiría duplicarlas al reintentar.
   if (result.kind === 'failed') {
     const { error: releaseError } = await db.from('chat_messages').delete().eq('id', reservation.id).eq('user_id', userId);
     // Si no se pudo liberar, el reintento verá "se está procesando" y, pasada la ventana, "no pude confirmar".
@@ -99,6 +103,7 @@ export async function handleWithReservation(
 
   // La respuesta queda después de la reserva aunque el reloj de la función vaya detrás del de la base.
   const createdAt = new Date(Math.max(clock().getTime(), Date.parse(reservation.created_at) + 1)).toISOString();
+  // El clientId en la respuesta permite emparejarla con su reserva al reintentar.
   const meta = { ...((result.meta as object | null) ?? {}), clientId };
   const row = { user_id: userId, role: 'assistant' as const, content: result.content, meta, created_at: createdAt };
   const { data: saved, error: saveError } = await db.from('chat_messages').insert(row).select(MESSAGE_COLUMNS).single();

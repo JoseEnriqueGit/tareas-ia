@@ -17,6 +17,8 @@ begin
         using errcode = '42501';
     end if;
     -- auth.uid() es null solo fuera de la API (SQL Editor / service role): la administración no se limita.
+    -- Responsable no creador y no supervisor: si cambia cualquier campo distinto de status, se rechaza (42501).
+    -- RLS por sí sola no distingue columnas; por eso la regla vive en el trigger.
     if auth.uid() is not null
        and old.owner_id is distinct from auth.uid()
        and not public.is_supervisor()

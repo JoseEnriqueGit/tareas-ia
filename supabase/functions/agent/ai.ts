@@ -31,6 +31,7 @@ export async function chatCompletion(messages: ChatMessage[], tools: unknown[]) 
   }
   const url = baseUrl.replace(/\/+$/, '') + '/chat/completions';
 
+  // Hasta 3 intentos: cada 400 por un parámetro no soportado ajusta `options` y reintenta.
   for (let attempt = 0; attempt < 3; attempt++) {
     const body: Record<string, unknown> = { model, messages, tools, tool_choice: 'auto', [options.tokensParam]: 2048 };
     if (options.reasoningEffort) body.reasoning_effort = options.reasoningEffort;
@@ -41,6 +42,7 @@ export async function chatCompletion(messages: ChatMessage[], tools: unknown[]) 
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify(body),
+        // Corta antes del límite de la Edge Function para poder devolver un error limpio.
         signal: AbortSignal.timeout(30_000),
       });
     } catch {
@@ -56,6 +58,7 @@ export async function chatCompletion(messages: ChatMessage[], tools: unknown[]) 
     }
 
     const text = await response.text();
+    // Los modelos de razonamiento de OpenAI exigen max_completion_tokens en vez de max_tokens.
     if (response.status === 400 && /max_tokens/.test(text) && options.tokensParam === 'max_tokens') {
       options.tokensParam = 'max_completion_tokens';
       continue;
@@ -66,9 +69,11 @@ export async function chatCompletion(messages: ChatMessage[], tools: unknown[]) 
       options.reasoningEffort = null;
       continue;
     }
+    // 429 no se reintenta aquí: insistir empeora el límite; se pide esperar al usuario.
     if (response.status === 429) {
       throw new AiError('El asistente alcanzó su límite de uso por minuto. Espera unos segundos y vuelve a intentarlo.', 429);
     }
+    // El detalle solo va al log (recortado); al usuario nunca se le muestra el cuerpo del proveedor.
     console.error('AI error', response.status, text.slice(0, 500));
     throw new AiError(`El servicio de IA respondió con un error (${response.status}).`, 502);
   }

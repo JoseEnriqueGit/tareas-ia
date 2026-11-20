@@ -5,6 +5,7 @@ import { z } from 'npm:zod@4';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { addDays, dayLabel, isValidIsoDate, startOfDayUtc, todayIn, whenLabel } from '../_shared/dates.ts';
 
+// Zod rechaza lo que el modelo invente (fechas imposibles, ids que no son uuid) antes de llegar a la base.
 const isoDate = z.string().refine(isValidIsoDate, 'Fecha inválida: usa el formato YYYY-MM-DD');
 const priority = z.enum(['baja', 'media', 'alta']);
 const status = z.enum(['pendiente', 'en_progreso', 'hecha']);
@@ -42,6 +43,7 @@ export const schemas = {
 
 export type ToolName = keyof typeof schemas;
 
+// La base usa valores en inglés; el modelo y el usuario ven español. Estos mapas traducen en ambos sentidos.
 const PRIORITY_DB = { baja: 'low', media: 'medium', alta: 'high' } as const;
 const STATUS_DB = { pendiente: 'pending', en_progreso: 'in_progress', hecha: 'done' } as const;
 const PRIORITY_ES = { low: 'baja', medium: 'media', high: 'alta' } as const;
@@ -136,6 +138,7 @@ export type ListedTask = TaskRef & {
   assignee: string | null;
 };
 
+// Tope de tarjetas por mensaje (acumula varias llamadas a listar_tareas).
 const LISTED_LIMIT = 20;
 
 /** Lo que el backend ejecutó durante el mensaje; con esto se arma el resumen (RF-17). */
@@ -156,6 +159,7 @@ type Context = { db: SupabaseClient; userId: string; isSupervisor: boolean; acti
 
 const SCOPE_USER = 'solo tus tareas (creadas por ti o asignadas a ti); no puedes ver las de otras personas';
 const SCOPE_SUPERVISOR = 'todo el equipo';
+// Tope de filas por consulta: acota lo que se manda al modelo.
 const LIST_LIMIT = 50;
 
 /** Valida los argumentos crudos del modelo. Devuelve los datos o un mensaje para el modelo. */
@@ -178,6 +182,7 @@ export function parseArgs<N extends ToolName>(
 
 /** Ejecuta una herramienta y devuelve el texto (JSON) que verá el modelo como `role: "tool"`. */
 export async function runTool(name: string, rawArgs: string, ctx: Context): Promise<string> {
+  // Orden: nombre conocido -> argumentos válidos -> recién entonces la base. Los errores vuelven al modelo como texto para que se corrija.
   if (!(name in schemas)) return JSON.stringify({ error: `Herramienta desconocida: ${name}` });
   const parsed = parseArgs(name as ToolName, rawArgs);
   if (!parsed.ok) return JSON.stringify({ error: `Parámetros inválidos: ${parsed.error}` });
@@ -188,6 +193,7 @@ export async function runTool(name: string, rawArgs: string, ctx: Context): Prom
   }
 }
 
+// El responsable se trae por la FK explícita porque tasks tiene dos relaciones con profiles (owner y assignee).
 const COLUMNS =
   'id, title, description, due_date, priority, status, created_at, completed_at, assignee:profiles!tasks_assignee_id_fkey(id, full_name)';
 
@@ -235,6 +241,7 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
   const now = ctx.now ?? new Date();
   const model = (data: unknown) => toModel(data as Row, now);
 
+  // Guarda de alcance: un usuario normal solo puede usar su propio id como responsable (RLS lo reforzaría igual).
   if ('responsable_id' in args && args.responsable_id && !ctx.isSupervisor && args.responsable_id !== ctx.userId) {
     return {
       error: name === 'listar_tareas'
@@ -248,6 +255,7 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       const { data, error } = await db
         .from('tasks')
         .insert({
+          // owner_id siempre es quien pide; nunca lo elige el modelo.
           owner_id: ctx.userId,
           assignee_id: args.responsable_id ?? ctx.userId,
           title: args.titulo,
@@ -287,6 +295,7 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       }
       const { data, error, count } = await query;
       if (error) return { error: error.message };
+      // Las tarjetas salen de lo que la base devolvió (sin repetidas), no de lo que el modelo escriba.
       const rows = data as unknown as Row[];
       for (const row of rows) {
         if (actions.listed.length >= LISTED_LIMIT) break;
@@ -330,12 +339,14 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       }
       const { data, error } = await db.from('tasks').update(changes).eq('id', args.id).select(COLUMNS).maybeSingle();
       if (error) return { error: error.message };
+      // Cero filas: no existe o RLS la oculta/impide; no se cuenta como acción hecha.
       if (!data) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };
       actions.updated.push(ref(data as unknown as Row));
       return { actualizada: model(data) };
     }
 
     case 'completar_tarea': {
+      // Completar es solo cambiar el estado: también lo puede el responsable no creador.
       const { data, error } = await db.from('tasks').update({ status: 'done' }).eq('id', args.id).select(COLUMNS).maybeSingle();
       if (error) return { error: error.message };
       if (!data) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };

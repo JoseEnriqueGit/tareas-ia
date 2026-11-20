@@ -2,6 +2,7 @@
 // Archivo sin dependencias: lo usan la Edge Function (Deno) y el frontend (Vite).
 // Las fechas límite son días de calendario en formato ISO "YYYY-MM-DD".
 
+// Zona fija de Santo Domingo (UTC-4, sin horario de verano): "hoy" no debe depender de la hora del servidor (UTC).
 export const TIME_ZONE = 'America/Santo_Domingo';
 
 const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -43,6 +44,7 @@ function zoneOffsetMs(at: number, timeZone: string): number {
 export function startOfDayUtc(isoDate: string, timeZone = TIME_ZONE): string {
   const [y, m, d] = isoDate.split('-').map(Number);
   const midnight = Date.UTC(y, m - 1, d);
+  // Intl no convierte de hora local a UTC: se calcula con el desfase de la zona.
   // Se corrige dos veces por si el desplazamiento cambia (horario de verano) entre la estimación y el resultado.
   let instant = midnight - zoneOffsetMs(midnight, timeZone);
   instant = midnight - zoneOffsetMs(instant, timeZone);
@@ -50,6 +52,7 @@ export function startOfDayUtc(isoDate: string, timeZone = TIME_ZONE): string {
 }
 
 export function isValidIsoDate(value: string): boolean {
+  // Se reconstruye la fecha y se compara: Date acepta "2026-02-31" y lo desborda a marzo.
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [y, m, d] = value.split('-').map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
@@ -57,6 +60,7 @@ export function isValidIsoDate(value: string): boolean {
 }
 
 export function addDays(isoDate: string, days: number): string {
+  // Todo el cálculo en UTC puro con días de calendario: así ningún desfase horario mueve el día.
   const [y, m, d] = isoDate.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
@@ -75,6 +79,7 @@ export function weekdayName(isoDate: string): string {
 export function dateContext(now: Date, timeZone = TIME_ZONE): string {
   const today = todayIn(now, timeZone);
   const weekEnd = endOfWeek(today);
+  // Semana de lunes a domingo: "esta semana" termina el domingo.
   const lines = [
     `Ahora: ${weekdayName(today)} ${today}, ${timeIn(now, timeZone)} (${timeZone}).`,
     `Hoy: ${today}. Mañana: ${addDays(today, 1)}. Pasado mañana: ${addDays(today, 2)}.`,
@@ -102,6 +107,7 @@ export type TaskView = 'today' | 'upcoming' | 'overdue' | 'done';
 /** Vista a la que pertenece una tarea (RF-06). Sin fecha => Próximas. */
 export function taskView(task: { status: string; due_date: string | null }, today: string): TaskView {
   if (task.status === 'done') return 'done';
+  // Se mira primero "hecha" (arriba): una tarea completada nunca cuenta como vencida.
   if (!task.due_date) return 'upcoming';
   if (task.due_date < today) return 'overdue';
   if (task.due_date === today) return 'today';
@@ -120,6 +126,7 @@ function daysBetween(from: string, to: string): number {
 
 /** Fecha límite en palabras para la interfaz: "Hoy", "Mañana", "Lunes 23", "Hace 3 días", "5 dic". */
 export function dayLabel(isoDate: string, today: string): string {
+  // Menos de 7 días se dice con nombre del día; más lejos, con la fecha corta.
   const diff = daysBetween(today, isoDate);
   const day = Number(isoDate.slice(8, 10));
   if (diff === 0) return 'Hoy';
@@ -141,6 +148,7 @@ export function whenLabel(instant: string | Date | null | undefined, now: Date, 
   if (!instant) return null;
   const date = new Date(instant);
   if (Number.isNaN(date.getTime())) return null;
+  // La diferencia se mide en días locales, no en horas: las 23:00 de ayer siguen siendo "ayer".
   const day = todayIn(date, timeZone);
   const diff = daysBetween(todayIn(now, timeZone), day);
   let label: string;
@@ -157,6 +165,7 @@ export type UpcomingGroup = (typeof UPCOMING_GROUPS)[number];
 
 /** Grupo de la vista Próximas (semanas de lunes a domingo). Sin fecha va al final. */
 export function upcomingGroup(isoDate: string | null, today: string): UpcomingGroup {
+  // "Mañana" va aparte; el resto se agrupa por semana calendario (lunes a domingo).
   if (!isoDate) return 'Sin fecha';
   if (isoDate === addDays(today, 1)) return 'Mañana';
   const weekEnd = endOfWeek(today);

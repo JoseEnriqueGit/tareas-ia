@@ -1,3 +1,4 @@
+// Detalle de una tarea: cambio de estado, edición y eliminación según permisos, con copia sin conexión.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth';
@@ -33,6 +34,7 @@ export default function TaskDetailPage() {
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  // Sin conexión o con un id que no es uuid no se consulta: se queda la copia guardada (o el aviso de error).
   useEffect(() => {
     if (!online || !isTaskId(id)) {
       setLoading(false);
@@ -52,6 +54,7 @@ export default function TaskDetailPage() {
 
   async function changeStatus() {
     if (!task) return;
+    // Actualización optimista: se muestra ya el cambio y se vuelve a `previous` si la base lo rechaza.
     const previous = task;
     const status = NEXT_STATUS[task.status];
     setBusy(true);
@@ -63,6 +66,7 @@ export default function TaskDetailPage() {
       setTask(previous);
       return setError(`No se pudo cambiar el estado: ${errorMessage(error)}`);
     }
+    // Se mezcla con `previous` porque esta consulta no trae `owner`.
     const updated = { ...previous, ...(data as Task) };
     setTask(updated);
     // La lista y el modo sin conexión deben ver el estado nuevo.
@@ -110,6 +114,7 @@ export default function TaskDetailPage() {
     );
   }
 
+  // Estos permisos solo ocultan botones; la base (RLS y trigger) es quien realmente los impone.
   const today = todayIn(new Date());
   const overdue = task.status !== 'done' && !!task.due_date && task.due_date < today;
   // Quien solo es responsable cambia el estado; editar y eliminar son de quien la creó o de un supervisor (S14).
@@ -216,6 +221,7 @@ function whenLabel(instant: string, today: string) {
 }
 
 function readCache(key: string): Task[] {
+  // Caché dañada o ausente = lista vacía; nunca debe tumbar la pantalla.
   try {
     return JSON.parse(localStorage.getItem(key) ?? '[]') as Task[];
   } catch {

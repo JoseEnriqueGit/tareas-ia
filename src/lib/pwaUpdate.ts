@@ -12,6 +12,7 @@ const listeners = new Set<() => void>();
 
 /** Hay texto escrito por el usuario que una recarga borraría (chat, formulario, login, búsqueda). */
 function hasTypedText(): boolean {
+  // Recargar borraría lo escrito; los campos ocultos, radio y checkbox no cuentan.
   return [...document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('textarea, input')].some(
     (field) => !['hidden', 'radio', 'checkbox'].includes(field.type) && field.value.trim() !== '',
   );
@@ -26,6 +27,7 @@ function applyOrNotify() {
 
 export function startUpdateChecks() {
   updateSW = registerSW({
+    // Sin autoUpdate: la decisión de recargar la toma applyOrNotify, no el navegador.
     immediate: true,
     onNeedRefresh() {
       pending = true;

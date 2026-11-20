@@ -1,3 +1,4 @@
+// Pantalla del asistente: historial, envío con reintento seguro, dictado por voz y confirmación de eliminaciones.
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { FunctionsHttpError } from '@supabase/supabase-js';
@@ -26,6 +27,7 @@ type Meta = {
 type Message = { id: string; role: 'user' | 'assistant'; content: string; meta: Meta | null; created_at: string };
 
 // Web Speech API (RF-21): solo existe en algunos navegadores (Chrome/Edge/Safari); si no, no se muestra el botón.
+// (any: TypeScript no incluye los tipos de esta API.)
 const SpeechRecognition: any =
   (window as unknown as Record<string, unknown>).SpeechRecognition ??
   (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
@@ -79,6 +81,7 @@ export default function ChatPage() {
 
   async function loadHistory() {
     setHistoryError('');
+    // El chat no tiene copia sin conexión: sin red o sin token solo se avisa.
     if (!navigator.onLine || offline) return setHistoryError('Sin conexión. El asistente necesita internet.');
     const { data, error } = await supabase
       .from('chat_messages')
@@ -123,6 +126,7 @@ export default function ChatPage() {
     if (!message || sending) return;
     setPending({ id: 'pending', role: 'user', content: message, meta: null, created_at: new Date().toISOString() });
     setError(null);
+    // Mismo texto = mismo intento: el clientId se reutiliza para que el servidor no lo ejecute dos veces.
     if (attemptRef.current?.text !== message) attemptRef.current = { text: message, clientId: crypto.randomUUID() };
     const { clientId } = attemptRef.current;
     const { data, error } = await supabase.functions.invoke('agent', { body: { message, clientId } });
@@ -141,6 +145,7 @@ export default function ChatPage() {
       setError(detail);
       return;
     }
+    // Envió correcto: el siguiente mensaje es un intento nuevo.
     attemptRef.current = null;
     setText('');
     setPending(null);
@@ -177,6 +182,7 @@ export default function ChatPage() {
     setMessages((current) => [...(current ?? []), (data as Message) ?? localMessage(content)]);
   }
 
+  // Cancelar no toca tareas: solo deja constancia en el chat para que la confirmación no reaparezca.
   async function cancelDelete(task: TaskRef) {
     const content = `De acuerdo, no eliminé «${task.title}».`;
     const { data } = await supabase.from('chat_messages').insert({ role: 'assistant', content }).select('id, role, content, meta, created_at').single();
@@ -237,6 +243,7 @@ export default function ChatPage() {
                     isSupervisor={profile?.role === 'supervisor'}
                   />
                 )}
+                {/* La confirmación solo se ofrece en el último mensaje: las antiguas ya no son accionables. */}
                 {meta?.pendingDelete && index === (messages?.length ?? 0) - 1 && (
                   <div className="confirm-card">
                     <p>

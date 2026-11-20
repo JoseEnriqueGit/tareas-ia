@@ -7,7 +7,9 @@ import { emptyActions, parseClientId, runTool, toolDefinitions, type Actions } f
 import { handleWithReservation, type RunResult } from './reservation.ts';
 import { historyForModel, stripInternalNotes, systemPrompt, type StoredMessage } from './history.ts';
 
+// Tope de vueltas modelo<->herramientas: evita bucles infinitos y costo descontrolado.
 const MAX_ITERATIONS = 5;
+// Solo los últimos mensajes van al modelo: acota tokens y costo.
 const HISTORY_LIMIT = 10;
 
 const corsHeaders = {
@@ -41,6 +43,7 @@ Deno.serve(async (req) => {
   const authorization = req.headers.get('Authorization');
   if (!authorization) return json({ error: 'Sesión requerida' }, 401);
 
+  // Cliente con la clave anónima + JWT del usuario: RLS limita cada consulta a sus propios datos.
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false },
@@ -64,6 +67,7 @@ Deno.serve(async (req) => {
     db.from('profiles').select('full_name, role').eq('id', userId).single(),
     db.from('chat_messages').select('role, content, meta').order('created_at', { ascending: false }).limit(HISTORY_LIMIT),
   ]);
+  // El rol sale de la base (no del cliente ni del modelo); decide el alcance de las herramientas.
   const isSupervisor = profile?.role === 'supervisor';
   const team = isSupervisor ? ((await db.from('profiles').select('id, full_name').order('full_name')).data ?? []) : [];
   // Hora de la petición: la usan la tabla de fechas del prompt y los cálculos de las herramientas.
@@ -86,6 +90,7 @@ Deno.serve(async (req) => {
 
     try {
       for (let i = 0; i < MAX_ITERATIONS; i++) {
+        // Cada llamada del modelo es una vuelta; sin tool_calls es la respuesta final.
         const answer = await chatCompletion(messages, toolDefinitions);
         if (!answer.tool_calls?.length) {
           // Si el modelo copió la nota interna, se quita antes de guardar o responder.
@@ -94,10 +99,12 @@ Deno.serve(async (req) => {
           break;
         }
         messages.push({ ...answer, role: 'assistant' });
+        // runTool valida los argumentos del modelo antes de tocar la base; lo que devuelve es texto para el modelo.
         for (const call of answer.tool_calls) {
           const result = await runTool(call.function.name, call.function.arguments, { db, userId, isSupervisor, actions, now: requestTime });
           messages.push({ role: 'tool', tool_call_id: call.id, content: result });
         }
+        // Se agotó el tope sin respuesta final: se avisa en vez de fingir que terminó.
         if (i === MAX_ITERATIONS - 1) warning = 'No pude terminar todo lo que pediste; revisa el resultado.';
       }
     } catch (error) {
@@ -110,6 +117,7 @@ Deno.serve(async (req) => {
       warning = `La IA falló antes de terminar (${aiError.message}). Esto es lo que alcancé a hacer:`;
     }
 
+    // El resumen sale de lo realmente ejecutado, así el texto del modelo no puede inventar acciones.
     const done = summary(actions);
     return { kind: 'done', content: [warning, reply || done || 'Listo.'].filter(Boolean).join('\n'), meta: { ...actions, summary: done } };
   }
@@ -128,6 +136,7 @@ Deno.serve(async (req) => {
 
   // Horas distintas para que el orden usuario -> asistente sea estable.
   const now = Date.now();
+  // Se guardan ambos mensajes juntos y solo tras tener respuesta: si la IA falló no queda nada a medias.
   const rows = [
     { user_id: userId, role: 'user', content: message, meta: null, created_at: new Date(now).toISOString() },
     { user_id: userId, role: 'assistant', content: result.content, meta: result.meta, created_at: new Date(now + 1).toISOString() },
@@ -137,6 +146,7 @@ Deno.serve(async (req) => {
     .insert(rows)
     .select('id, role, content, meta, created_at')
     .order('created_at');
+  // Si guardar falla, igual se responde: las acciones ya ocurrieron y el usuario debe verlas.
   if (saveError) console.error('chat save error', saveError.message);
 
   return json({ messages: saved ?? rows.map((row, i) => ({ ...row, id: `local-${now}-${i}` })) });

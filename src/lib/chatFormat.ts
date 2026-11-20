@@ -9,6 +9,7 @@ export type Block =
   | { type: 'heading'; inlines: Inline[] }
   | { type: 'list'; ordered: boolean; items: Inline[][] };
 
+// El modelo escribe Markdown informal aunque se le pida no usarlo: se tolera y se aplana (títulos, reglas, tablas).
 const HEADING = /^\s{0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$/;
 const BULLET = /^(\s*)[-*•·]\s+(.*)$/;
 const NUMBERED = /^(\s*)\d{1,3}[.)]\s+(.*)$/;
@@ -42,6 +43,7 @@ const ARTICLE_WITHOUT_EL: Record<string, string> = { el: '', del: 'de ', al: 'a 
  * "el lunes 2026-11-23" -> "el lunes 23", "hoy 2026-11-19" -> "hoy", "vence el 2026-11-20" -> "vence mañana".
  */
 function friendlyDates(text: string, today: string): string {
+  // El modelo a veces escribe fechas ISO pese a la instrucción: se traducen aquí, solo si son fechas reales.
   return text.replace(DATED, (match: string, word: string | undefined, date: string, offset: number, whole: string) => {
     if (!isValidIsoDate(date)) return match;
     if (word && WEEKDAYS.test(word)) return `${word} ${Number(date.slice(8, 10))}`;
@@ -57,6 +59,7 @@ function friendlyDates(text: string, today: string): string {
   });
 }
 
+// Devuelve datos (no HTML ni strings con marcas): React escapa el texto y nada del modelo se inyecta como markup.
 function parseInline(line: string, today: string): Inline[] {
   const spans: Inline[] = [];
   const pushText = (text: string) => {
@@ -81,6 +84,7 @@ function joinLines(lines: string[], today: string): Inline[] {
 }
 
 /** Fila de tabla Markdown sin barras: "| a | b |" -> "a · b". */
+// Las tablas no caben en una burbuja de chat: se convierten en texto plano por fila.
 function tableRow(line: string): string {
   return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim()).filter(Boolean).join(' · ');
 }
@@ -156,11 +160,13 @@ export function formatAssistantText(text: string, today: string): Block[] {
       blankInList = false;
       continue;
     }
+    // Línea con sangría que no es elemento: continúa el elemento anterior en vez de abrir un párrafo.
     if (list && /^\s+/.test(line) && !blankInList) {
       list.items[list.items.length - 1].push(line);
       continue;
     }
     flushList();
+    // Las reglas horizontales (---) solo separan: no se pintan.
     if (RULE.test(line)) {
       flushParagraph();
       continue;

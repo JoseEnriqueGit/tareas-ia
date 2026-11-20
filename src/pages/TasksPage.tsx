@@ -1,3 +1,4 @@
+// Lista de tareas por vistas (Hoy, Próximas, Vencidas, Completadas) con filtros, cambio rápido de estado y copia sin conexión.
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
@@ -91,6 +92,7 @@ export default function TasksPage() {
       setError(errorMessage(error));
       return;
     }
+    // Se guarda lo recibido y su hora: la copia sin conexión indica de cuándo es.
     setTasks(data as Task[]);
     localStorage.setItem(cacheKey, JSON.stringify(data));
     localStorage.setItem(tasksSavedAtKey(userId), String(Date.now()));
@@ -105,6 +107,7 @@ export default function TasksPage() {
     const completed_at = status === 'done' ? new Date().toISOString() : null;
     // Se refleja de inmediato y se revierte si falla; la base fija la hora real de completado.
     setTasks((current) => current!.map((t) => (t.id === task.id ? { ...t, status, completed_at } : t)));
+    // Solo se manda `status`: es lo único que puede cambiar un responsable no creador (RLS/trigger).
     const { data, error } = await supabase.from('tasks').update({ status }).eq('id', task.id).select(TASK_SELECT).single();
     if (error) {
       setTasks((current) => current!.map((t) => (t.id === task.id ? task : t)));
@@ -125,6 +128,7 @@ export default function TasksPage() {
     setAssigneeFilter('');
   }
 
+  // Búsqueda y filtros se aplican en el cliente sobre lo ya cargado: sin viajes a la base y funcionan sin red.
   const needle = search.trim().toLocaleLowerCase();
   const filtered = (tasks ?? []).filter(
     (t) =>

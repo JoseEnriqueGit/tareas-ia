@@ -20,11 +20,13 @@ export function readStoredUser(storage: { getItem(key: string): string | null },
   try {
     const raw = storage.getItem(key);
     const session = raw ? JSON.parse(raw) : null;
+    // Sin refresh_token no hay forma de renovar luego: se trata como sin sesión.
     const id = session?.user?.id;
     if (typeof id !== 'string' || !id || !session.refresh_token || typeof session.expires_at !== 'number') return null;
     const email = typeof session.user.email === 'string' ? session.user.email : undefined;
     return { id, email, expired: session.expires_at * 1000 - now < EXPIRY_MARGIN_MS };
   } catch {
+    // JSON dañado o storage no disponible: nunca debe romper el arranque.
     return null;
   }
 }
@@ -44,6 +46,7 @@ export function decideStart(online: boolean, stored: StoredUser | null): 'offlin
 
 /** Qué hacer cuando getSession() no dio una sesión utilizable. */
 export function decideWithoutSession(input: { online: boolean; stored: StoredUser | null; error: unknown }): 'offline' | 'login' {
+  // Un rechazo real del servidor (token revocado) va al login; solo red caída o 5xx permite seguir sin conexión.
   if (!input.stored) return 'login';
   return !input.online || isNetworkError(input.error) ? 'offline' : 'login';
 }

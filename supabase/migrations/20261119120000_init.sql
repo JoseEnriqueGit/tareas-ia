@@ -5,8 +5,10 @@
 -- Perfiles ------------------------------------------------------------------
 
 create table public.profiles (
+  -- Mismo id que auth.users: el perfil nace y muere con la cuenta.
   id uuid primary key references auth.users (id) on delete cascade,
   full_name text not null check (length(trim(full_name)) between 1 and 80),
+  -- Por defecto 'user'; el rol supervisor solo se asigna desde el panel/SQL, nunca desde la app (no hay grant de update sobre role).
   role text not null default 'user' check (role in ('user', 'supervisor')),
   created_at timestamptz not null default now()
 );
@@ -50,6 +52,7 @@ create trigger on_auth_user_created
 
 create table public.tasks (
   id uuid primary key default gen_random_uuid(),
+  -- owner = quien la creó; assignee = quien la ejecuta. Ambos toman por defecto al usuario autenticado.
   owner_id uuid not null default auth.uid() references public.profiles (id) on delete cascade,
   assignee_id uuid not null default auth.uid() references public.profiles (id) on delete cascade,
   title text not null check (length(trim(title)) between 1 and 200),
@@ -57,6 +60,7 @@ create table public.tasks (
   due_date date,
   priority text not null default 'medium' check (priority in ('low', 'medium', 'high')),
   status text not null default 'pending' check (status in ('pending', 'in_progress', 'done')),
+  -- completed_at lo fija el trigger, no el cliente.
   completed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -91,6 +95,7 @@ begin
 end;
 $$;
 
+-- BEFORE: el trigger puede corregir la fila (fechas, completed_at) o rechazarla antes de guardarla.
 create trigger tasks_before_write
   before insert or update on public.tasks
   for each row execute function public.tasks_before_write();
@@ -106,10 +111,12 @@ create table public.chat_messages (
   created_at timestamptz not null default now()
 );
 
+-- El historial se lee por usuario y orden cronológico.
 create index chat_messages_user_idx on public.chat_messages (user_id, created_at);
 
 -- RLS -----------------------------------------------------------------------
 
+-- Sin política no hay acceso: RLS es la barrera real; la app y el agente corren con el JWT del usuario.
 alter table public.profiles enable row level security;
 alter table public.tasks enable row level security;
 alter table public.chat_messages enable row level security;
@@ -131,6 +138,7 @@ create policy "tasks: ver propias, asignadas o todas si es supervisor"
     or (select public.is_supervisor())
   );
 
+-- Con (select auth.uid()) Postgres evalúa la función una vez por consulta y no por fila.
 create policy "tasks: crear como dueño, asignada a sí mismo salvo supervisor"
   on public.tasks for insert to authenticated
   with check (
@@ -155,6 +163,7 @@ create policy "tasks: eliminar propias o todas si es supervisor"
   on public.tasks for delete to authenticated
   using (owner_id = (select auth.uid()) or (select public.is_supervisor()));
 
+-- El chat es privado, ni siquiera el supervisor lo ve.
 create policy "chat_messages: ver los propios"
   on public.chat_messages for select to authenticated
   using (user_id = (select auth.uid()));
@@ -171,10 +180,12 @@ grant select on public.profiles to authenticated;
 grant update (full_name) on public.profiles to authenticated;
 
 grant select, insert, delete on public.tasks to authenticated;
+-- Update por columnas: owner_id, completed_at y fechas del sistema no se pueden tocar desde la API.
 grant update (title, description, due_date, priority, status, assignee_id) on public.tasks to authenticated;
 
 grant select, insert on public.chat_messages to authenticated;
 
+-- Las funciones SECURITY DEFINER no se exponen a anon; handle_new_user solo la dispara el trigger.
 revoke all on function public.is_supervisor() from public, anon;
 grant execute on function public.is_supervisor() to authenticated;
 revoke all on function public.handle_new_user() from public, anon, authenticated;

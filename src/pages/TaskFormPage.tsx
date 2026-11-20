@@ -1,3 +1,4 @@
+// Formulario para crear o editar una tarea (el supervisor también elige responsable).
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth';
@@ -58,6 +59,7 @@ export default function TaskFormPage() {
   const [form, setForm] = useState<Form>(EMPTY);
   const [assigneeId, setAssigneeId] = useState(profile?.id ?? '');
   const [assigneeName, setAssigneeName] = useState(profile?.full_name ?? '');
+  // El creador (no el responsable) decide si se muestra "Eliminar"; al editar se reemplaza por el de la tarea.
   const [ownerId, setOwnerId] = useState(userId ?? '');
   const [loading, setLoading] = useState(!isNew);
   const [loadError, setLoadError] = useState('');
@@ -104,6 +106,7 @@ export default function TaskFormPage() {
     setFieldErrors((e) => ({ ...e, [key]: undefined }));
   }
 
+  // Validación propia (noValidate en el form) para dar mensajes en español y enfocar el primer error.
   function validate(): FieldErrors {
     const errors: FieldErrors = {};
     if (!form.title.trim()) errors.title = 'El título es obligatorio.';
@@ -124,6 +127,7 @@ export default function TaskFormPage() {
     if (errors.title) return titleRef.current?.focus();
     if (errors.due_date) return dateRef.current?.focus();
 
+    // Sin conexión el botón está deshabilitado: guardar exige token válido.
     setBusy(true);
     const values = {
       title: form.title.trim(),
@@ -353,6 +357,7 @@ export default function TaskFormPage() {
 }
 
 /** El trigger tasks_before_write rechaza (42501) que el responsable cambie algo distinto del estado. */
+// 42501 = insufficient_privilege: se traduce a un mensaje que explica qué sí puede hacer el usuario.
 function saveErrorMessage(error: { code?: string; message: string }) {
   if (error.code === '42501' && error.message.includes('cambiar el estado')) {
     return 'Solo puedes cambiar el estado de esta tarea porque te la asignaron. Para cambiar lo demás, pídeselo a quien la creó o a un supervisor.';
@@ -374,6 +379,7 @@ function AssigneeSheet({ team, selfId, current, onClose, onPick }: AssigneeProps
   const [open, setOpen] = useState<Record<string, number> | null>(null);
   const name = useId();
 
+  // Un solo viaje y se cuenta en el cliente; el supervisor ve las abiertas de todo el equipo por RLS.
   useEffect(() => {
     supabase
       .from('tasks')

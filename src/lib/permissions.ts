@@ -8,6 +8,7 @@ export function canDelete(task: Owned, userId: string | undefined, isSupervisor:
   return !!userId && (task.owner_id === userId || isSupervisor);
 }
 
+// Hoy coincide con canDelete, pero se mantiene separada: son reglas distintas en la base y pueden divergir.
 /** Editar título, descripción, fecha, prioridad o responsable: quien la creó o un supervisor. */
 export function canEditFields(task: Owned, userId: string | undefined, isSupervisor: boolean): boolean {
   return !!userId && (task.owner_id === userId || isSupervisor);
