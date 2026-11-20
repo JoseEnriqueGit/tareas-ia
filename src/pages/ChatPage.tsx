@@ -1,16 +1,27 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { FunctionsHttpError } from '@supabase/supabase-js';
-import { supabase, errorMessage } from '../lib/supabase';
+import { supabase, errorMessage, PRIORITY_LABEL, STATUS_LABEL, type Priority, type Status } from '../lib/supabase';
 import { timeOf } from '../lib/format';
+import { formatAssistantText, type Inline } from '../lib/chatFormat';
+import { useAuth } from '../auth';
 import { dayLabel, todayIn } from '../../supabase/functions/_shared/dates.ts';
 import AppHeader from '../components/AppHeader';
 import Logo from '../components/Logo';
-import { CheckIcon, ChevronIcon, MicIcon, SendIcon } from '../components/Icons';
+import { CheckIcon, ChevronIcon, MicIcon, SendIcon, TasksIcon } from '../components/Icons';
 import './chat.css';
 
 type TaskRef = { id: string; title: string; due_date: string | null };
-type Meta = { created: TaskRef[]; updated: TaskRef[]; completed: TaskRef[]; pendingDelete: TaskRef | null; summary: string };
+type ListedTask = TaskRef & { priority: Priority; status: Status; assignee: string | null };
+// `listed` no existe en los mensajes guardados antes de S12.
+type Meta = {
+  created: TaskRef[];
+  updated: TaskRef[];
+  completed: TaskRef[];
+  pendingDelete: TaskRef | null;
+  listed?: ListedTask[];
+  summary: string;
+};
 type Message = { id: string; role: 'user' | 'assistant'; content: string; meta: Meta | null; created_at: string };
 
 // Web Speech API (RF-21): solo existe en algunos navegadores (Chrome/Edge/Safari); si no, no se muestra el botón.
@@ -39,6 +50,7 @@ export default function ChatPage() {
   const dockRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
+  const { profile } = useAuth();
   const sending = pending !== null;
 
   function dictate() {
@@ -185,13 +197,27 @@ export default function ChatPage() {
           const day = m.created_at ? todayIn(new Date(m.created_at)) : '';
           const previous = shown[index - 1];
           const newDay = day && (!previous?.created_at || todayIn(new Date(previous.created_at)) !== day);
-          const hasCards = m.meta && (m.meta.created.length + m.meta.completed.length + m.meta.updated.length > 0 || m.meta.pendingDelete);
+          const acted = !!m.meta && (m.meta.created.length + m.meta.completed.length + m.meta.updated.length > 0 || !!m.meta.pendingDelete);
+          // Si el modelo solo buscó la tarea para actuar sobre ella, la lista consultada sobra.
+          const listed = !acted && m.meta?.listed?.length ? m.meta.listed : [];
           return (
             <div key={m.id} className="chat-row">
               {newDay && <p className="chat-day">{dayLabel(day, today)}, {timeOf(m.created_at)}</p>}
-              <div className={`bubble ${m.role}${hasCards ? ' wide' : ''}`}>
-                <p className="bubble-text">{withBold(m.content)}</p>
+              <div className={`bubble ${m.role}${acted || listed.length ? ' wide' : ''}`}>
+                {m.role === 'assistant' ? (
+                  <FormattedText text={m.content} today={today} />
+                ) : (
+                  <p className="bubble-text">{m.content}</p>
+                )}
                 {m.meta && <ResultCards meta={m.meta} today={today} />}
+                {listed.length > 0 && (
+                  <ListedCard
+                    tasks={listed}
+                    today={today}
+                    myName={profile?.full_name ?? null}
+                    isSupervisor={profile?.role === 'supervisor'}
+                  />
+                )}
                 {m.meta?.pendingDelete && index === (messages?.length ?? 0) - 1 && (
                   <div className="confirm-card">
                     <p>
@@ -313,7 +339,67 @@ function ResultCards({ meta, today }: { meta: Meta; today: string }) {
   );
 }
 
-/** El modelo a veces responde con **negritas** de Markdown: se muestran como negrita en vez de asteriscos. */
-function withBold(text: string) {
-  return text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part));
+const LISTED_SHOWN = 8;
+
+/** Tareas que el asistente consultó (listar_tareas), como tarjetas que abren el detalle (S12). */
+function ListedCard({ tasks, today, myName, isSupervisor }: { tasks: ListedTask[]; today: string; myName: string | null; isSupervisor: boolean }) {
+  const rest = tasks.length - LISTED_SHOWN;
+  return (
+    <div className="result-card listed">
+      <h3><TasksIcon size={14} />{tasks.length === 1 ? '1 tarea' : `${tasks.length} tareas`}</h3>
+      {tasks.slice(0, LISTED_SHOWN).map((task) => {
+        const done = task.status === 'done';
+        const late = !done && !!task.due_date && task.due_date < today;
+        const showAssignee = task.assignee && (isSupervisor || task.assignee !== myName);
+        return (
+          <Link key={task.id} to={`/tareas/${task.id}`}>
+            <span className="result-main">
+              <strong className={done ? 'done' : undefined}>{task.title}</strong>
+              <span className="result-meta">
+                <span className={late ? 'late' : undefined}>{task.due_date ? dayLabel(task.due_date, today) : 'Sin fecha'}</span>
+                <span className={`prio ${task.priority}`}>
+                  <span className={`dot ${task.priority}`} aria-hidden="true" />
+                  {PRIORITY_LABEL[task.priority]}
+                </span>
+                {task.status !== 'pending' && <span className={`state ${task.status}`}>{STATUS_LABEL[task.status]}</span>}
+                {showAssignee && <span>{task.assignee}</span>}
+              </span>
+            </span>
+            <ChevronIcon />
+          </Link>
+        );
+      })}
+      {rest > 0 && (
+        <Link to="/" className="result-more">
+          <span className="result-main">Ver {rest} más en Tareas</span>
+          <ChevronIcon />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+/** Respuesta del asistente con formato (párrafos, listas, negritas, fechas en palabras), sin HTML crudo. */
+function FormattedText({ text, today }: { text: string; today: string }) {
+  return (
+    <div className="bubble-text rich">
+      {formatAssistantText(text, today).map((block, i) => {
+        if (block.type === 'list') {
+          const items = block.items.map((item, j) => <li key={j}>{inlines(item)}</li>);
+          return block.ordered ? <ol key={i}>{items}</ol> : <ul key={i}>{items}</ul>;
+        }
+        return <p key={i} className={block.type === 'heading' ? 'rich-heading' : undefined}>{inlines(block.inlines)}</p>;
+      })}
+    </div>
+  );
+}
+
+function inlines(spans: Inline[]) {
+  return spans.map((span, i) => {
+    if (span.type === 'break') return <br key={i} />;
+    if (span.type === 'bold') return <strong key={i}>{span.text}</strong>;
+    if (span.type === 'italic') return <em key={i}>{span.text}</em>;
+    if (span.type === 'code') return <code key={i}>{span.text}</code>;
+    return span.text;
+  });
 }

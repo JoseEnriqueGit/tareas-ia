@@ -122,16 +122,26 @@ export const toolDefinitions = [
 
 export type TaskRef = { id: string; title: string; due_date: string | null };
 
+/** Tarea consultada con listar_tareas, con los valores de la base; la app la muestra como tarjeta. */
+export type ListedTask = TaskRef & {
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'in_progress' | 'done';
+  assignee: string | null;
+};
+
+const LISTED_LIMIT = 20;
+
 /** Lo que el backend ejecutó durante el mensaje; con esto se arma el resumen (RF-17). */
 export type Actions = {
   created: TaskRef[];
   updated: TaskRef[];
   completed: TaskRef[];
   pendingDelete: TaskRef | null;
+  listed: ListedTask[];
 };
 
 export function emptyActions(): Actions {
-  return { created: [], updated: [], completed: [], pendingDelete: null };
+  return { created: [], updated: [], completed: [], pendingDelete: null, listed: [] };
 }
 
 type Context = { db: SupabaseClient; userId: string; isSupervisor: boolean; actions: Actions };
@@ -236,7 +246,18 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       }
       const { data, error } = await query;
       if (error) return { error: error.message };
-      return { total: data.length, tareas: (data as unknown as Row[]).map(toModel) };
+      const rows = data as unknown as Row[];
+      for (const row of rows) {
+        if (actions.listed.length >= LISTED_LIMIT) break;
+        if (actions.listed.some((task) => task.id === row.id)) continue;
+        actions.listed.push({
+          ...ref(row),
+          priority: row.priority,
+          status: row.status,
+          assignee: row.assignee?.full_name ?? null,
+        });
+      }
+      return { total: rows.length, tareas: rows.map(toModel) };
     }
 
     case 'actualizar_tarea': {

@@ -6,6 +6,15 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-19
+
+### Añadido
+- Las tareas que consulta el asistente se muestran como tarjetas tocables (fecha en palabras, prioridad, estado y responsable) que abren su detalle; el asistente responde con un resumen breve en vez de repetir la lista.
+- Formato de las respuestas del asistente: párrafos, listas con viñetas y numeradas, negritas, cursivas y código; las fechas AAAA-MM-DD se muestran en palabras ("mañana", "lunes 23").
+
+### Corregido
+- Botones desactivados con aspecto de desactivados; una URL de tarea mal formada muestra "La tarea no existe" en vez de un error técnico; editar ya no duplica el detalle en el historial.
+
 ## [1.1.0] - 2026-11-19
 
 ### Añadido
@@ -41,6 +50,7 @@ Primera versión publicada en https://tareas-ia.vercel.app.
 - 15 pruebas automáticas de fechas y de validación de herramientas (RF-30).
 
 [Unreleased]: https://tareas-ia.vercel.app
+[1.2.0]: https://tareas-ia.vercel.app
 [1.1.0]: https://tareas-ia.vercel.app
 [1.0.1]: https://tareas-ia.vercel.app
 [1.0.0]: https://tareas-ia.vercel.app

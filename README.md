@@ -24,7 +24,7 @@ Requisitos: Node 22+, Deno 2 (pruebas) y el CLI de Supabase.
 npm install
 cp .env.example .env      # completa VITE_SUPABASE_ANON_KEY (Supabase → Project Settings → API Keys → anon public)
 npm run dev               # http://localhost:5173
-npm test                  # 13 pruebas (fechas y herramientas del agente)
+npm test                  # 29 pruebas (fechas, herramientas del agente y formato del chat)
 ```
 
 ### Backend desde cero (otro proyecto de Supabase)

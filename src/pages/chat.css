@@ -13,6 +13,19 @@
 .bubble.wide { width: 86%; }
 .bubble-text { white-space: pre-wrap; }
 
+/* Respuesta del asistente con formato: párrafos, listas, negritas y código (S12) */
+.bubble-text.rich { white-space: normal; line-height: 1.5; }
+.rich > * + * { margin-top: 8px; }
+.rich .rich-heading { font-weight: 700; }
+.rich ul, .rich ol { padding-left: 20px; }
+.rich li + li { margin-top: 4px; }
+.rich li { padding-left: 2px; }
+.rich ul li::marker { color: var(--primary); }
+.rich ol li::marker { color: var(--primary); font-weight: 700; }
+.rich strong { font-weight: 700; }
+.rich code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85em; padding: 1px 5px;
+  border-radius: 6px; background: var(--bg); border: 1px solid var(--border); overflow-wrap: anywhere; }
+
 /* Pensando: tres puntos que laten */
 .bubble.typing { display: flex; gap: 5px; padding: 14px 16px; }
 .bubble.typing i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); animation: pulse 1.2s ease-in-out infinite; }
@@ -28,6 +41,18 @@
 .result-main { flex: 1; min-width: 0; }
 .result-main strong { display: block; font-size: .92rem; }
 .result-main small { display: block; color: var(--muted); font-size: .8rem; }
+
+/* Tareas consultadas por el asistente */
+.result-card.listed h3 { background: var(--bg); color: var(--text); }
+.result-main strong.done { color: var(--muted); text-decoration: line-through; }
+.result-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 2px; font-size: .8rem; color: var(--muted); }
+.result-meta .late { color: var(--danger); font-weight: 700; }
+.result-meta .prio { display: inline-flex; align-items: center; gap: 4px; }
+.result-meta .prio.high { color: var(--danger); font-weight: 600; }
+.result-meta .state { font-weight: 600; }
+.result-meta .state.in_progress { color: var(--progress-text); }
+.result-card a.result-more { min-height: 48px; color: var(--primary); font-weight: 600; font-size: .9rem; }
+.result-card a.result-more > svg { color: var(--primary); }
 
 /* Confirmación de borrado dentro de la burbuja */
 .confirm-card { margin-top: 8px; padding: 10px; border: 1px solid var(--error-border); background: var(--error-bg); border-radius: 12px; }

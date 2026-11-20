@@ -1,13 +1,13 @@
 {
   "name": "asistente-tareas-ia",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "cd supabase/functions && deno test"
+    "test": "cd supabase/functions && deno test && cd ../.. && deno test --no-config src/lib"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",
