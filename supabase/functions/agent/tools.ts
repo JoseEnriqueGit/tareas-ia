@@ -313,16 +313,20 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       if (args.fecha_limite !== undefined) changes.due_date = args.fecha_limite;
       if (args.prioridad) changes.priority = PRIORITY_DB[args.prioridad as keyof typeof PRIORITY_DB];
       if (args.estado) changes.status = STATUS_DB[args.estado as keyof typeof STATUS_DB];
-      // Ponerse a sí mismo como responsable de una tarea propia o asignada no cambia nada para un usuario normal.
-      if (args.responsable_id && (ctx.isSupervisor || args.responsable_id !== ctx.userId)) changes.assignee_id = args.responsable_id;
+      if (args.responsable_id) changes.assignee_id = args.responsable_id;
       if (!Object.keys(changes).length) return { error: 'No hay cambios que aplicar.' };
       // S14.2: quien solo es responsable cambia el estado; el resto se rechaza antes de escribir
       // (el trigger tasks_before_write lo impone igual en la base).
       if (!ctx.isSupervisor && Object.keys(changes).some((column) => column !== 'status')) {
-        const { data: task, error: readError } = await db.from('tasks').select('owner_id').eq('id', args.id).maybeSingle();
+        const { data, error: readError } = await db.from('tasks').select('owner_id, assignee_id').eq('id', args.id).maybeSingle();
         if (readError) return { error: readError.message };
-        if (!task) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };
-        if ((task as { owner_id: string }).owner_id !== ctx.userId) return { error: ONLY_STATUS };
+        if (!data) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };
+        const task = data as { owner_id: string; assignee_id: string };
+        // Repetir el responsable que ya tiene no cambia nada; solo eso se descarta. Si es otro
+        // (p. ej. el creador reclama una tarea reasignada), es un cambio real y se aplica o se rechaza.
+        if (changes.assignee_id === task.assignee_id) delete changes.assignee_id;
+        if (task.owner_id !== ctx.userId && Object.keys(changes).some((column) => column !== 'status')) return { error: ONLY_STATUS };
+        if (!Object.keys(changes).length) return { error: 'No hay cambios que aplicar.' };
       }
       const { data, error } = await db.from('tasks').update(changes).eq('id', args.id).select(COLUMNS).maybeSingle();
       if (error) return { error: error.message };

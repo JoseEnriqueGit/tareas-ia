@@ -342,10 +342,22 @@ Deno.test('savedReply devuelve el mensaje guardado con ese clientId y la respues
 
 Deno.test('actualizar_tarea: el responsable que se pone a sí mismo como responsable solo cambia el estado (sin error falso)', async () => {
   const actions = emptyActions();
-  const db = fakeDb([[row(OTHER, 'Asignada', { owner_id: OTHER, status: 'done' })]]);
+  // Ya es el responsable: poner su propio id no cambia nada y no debe bloquear el cambio de estado.
+  const db = fakeDb([[{ owner_id: OTHER, assignee_id: ID }], [row(OTHER, 'Asignada', { owner_id: OTHER, status: 'done' })]]);
   const result = JSON.parse(await runTool('actualizar_tarea', `{"id":"${OTHER}","responsable_id":"${ID}","estado":"hecha"}`, {
     db: db as never, userId: ID, isSupervisor: false, actions, now: NEAR_MIDNIGHT,
   }));
   assertEquals(result.actualizada.estado, 'hecha');
   assert(db.calls.some(([method, values]) => method === 'update' && JSON.stringify(values) === '{"status":"done"}'));
+});
+
+Deno.test('actualizar_tarea: el creador (no supervisor) puede reclamar una tarea que el supervisor reasignó a otra persona', async () => {
+  const actions = emptyActions();
+  // El creador es ID y hoy la tiene OTHER: ponerse como responsable sí es un cambio real y se aplica.
+  const db = fakeDb([[{ owner_id: ID, assignee_id: OTHER }], [row(OTHER, 'Reclamada', { owner_id: ID })]]);
+  const result = JSON.parse(await runTool('actualizar_tarea', `{"id":"${OTHER}","responsable_id":"${ID}"}`, {
+    db: db as never, userId: ID, isSupervisor: false, actions, now: NEAR_MIDNIGHT,
+  }));
+  assert(result.actualizada, JSON.stringify(result));
+  assert(db.calls.some(([method, values]) => method === 'update' && JSON.stringify(values) === `{"assignee_id":"${ID}"}`));
 });
