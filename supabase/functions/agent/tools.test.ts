@@ -328,16 +328,16 @@ Deno.test('savedReply devuelve el mensaje guardado con ese clientId y la respues
   const user = { id: 'u1', role: 'user' as const, content: 'Cobrar a Juan', meta: { clientId: ID }, created_at: '2026-11-20T10:00:00.000Z' };
   const reply = { id: 'a1', role: 'assistant' as const, content: 'Creé 1 tarea.', meta: null, created_at: '2026-11-20T10:00:00.001Z' };
   const db = fakeDb([[user], [reply]]);
-  assertEquals(await savedReply(db as never, ID), [user, reply]);
+  assertEquals(await savedReply(db as never, ID, ID), [user, reply]);
   assert(db.calls.some(([method, column, value]) => method === 'eq' && column === 'meta->>clientId' && value === ID));
   assert(db.calls.some(([method, column, value]) => method === 'gt' && column === 'created_at' && value === user.created_at));
 
   const missing = fakeDb([[]]);
-  assertEquals(await savedReply(missing as never, ID), null);
+  assertEquals(await savedReply(missing as never, ID, ID), null);
   assertEquals(missing.calls.filter(([method]) => method === 'from').length, 1);
 
   // Sin respuesta guardada no hay par que repetir.
-  assertEquals(await savedReply(fakeDb([[user], []]) as never, ID), null);
+  assertEquals(await savedReply(fakeDb([[user], []]) as never, ID, ID), null);
 });
 
 Deno.test('actualizar_tarea: el responsable que se pone a sí mismo como responsable solo cambia el estado (sin error falso)', async () => {
@@ -360,4 +360,13 @@ Deno.test('actualizar_tarea: el creador (no supervisor) puede reclamar una tarea
   }));
   assert(result.actualizada, JSON.stringify(result));
   assert(db.calls.some(([method, values]) => method === 'update' && JSON.stringify(values) === `{"assignee_id":"${ID}"}`));
+});
+
+Deno.test('savedReply filtra por el usuario en ambas consultas (defensa además de RLS)', async () => {
+  const user = { id: 'u1', role: 'user', content: 'hola', meta: { clientId: ID }, created_at: '2026-11-20T10:00:00Z' };
+  const reply = { id: 'a1', role: 'assistant', content: 'Listo.', meta: null, created_at: '2026-11-20T10:00:00.001Z' };
+  const db = fakeDb([[user], [reply]]);
+  await savedReply(db as never, ID, OTHER);
+  const userFilters = db.calls.filter(([method, column, value]) => method === 'eq' && column === 'user_id' && value === OTHER);
+  assertEquals(userFilters.length, 2);
 });

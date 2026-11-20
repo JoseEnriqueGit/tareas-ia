@@ -379,10 +379,12 @@ const MESSAGE_COLUMNS = 'id, role, content, meta, created_at';
  * Si este mensaje ya se procesó (un reintento tras perder la respuesta), devuelve lo guardado:
  * el mensaje del usuario con ese clientId y la respuesta siguiente. RLS limita la búsqueda al propio chat.
  */
-export async function savedReply(db: SupabaseClient, clientId: string): Promise<SavedMessage[] | null> {
+// RLS ya limita el chat al propio usuario; el filtro por user_id es una defensa extra (revisión R1).
+export async function savedReply(db: SupabaseClient, clientId: string, userId: string): Promise<SavedMessage[] | null> {
   const { data: user, error } = await db
     .from('chat_messages')
     .select(MESSAGE_COLUMNS)
+    .eq('user_id', userId)
     .eq('role', 'user')
     .eq('meta->>clientId', clientId)
     .order('created_at', { ascending: false })
@@ -392,6 +394,7 @@ export async function savedReply(db: SupabaseClient, clientId: string): Promise<
   const { data: reply } = await db
     .from('chat_messages')
     .select(MESSAGE_COLUMNS)
+    .eq('user_id', userId)
     .eq('role', 'assistant')
     .gt('created_at', (user as SavedMessage).created_at)
     .order('created_at')

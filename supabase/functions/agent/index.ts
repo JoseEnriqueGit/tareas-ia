@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
   // S14.5: si este mensaje ya se procesó (el navegador perdió la respuesta y reintenta), se devuelve
   // lo guardado sin volver a llamar al modelo ni a las herramientas, para no duplicar tareas.
   if (clientId) {
-    const saved = await savedReply(db, clientId);
+    const saved = await savedReply(db, clientId, userId);
     if (saved) return json({ messages: saved, replayed: true });
   }
 
