@@ -14,6 +14,7 @@ import {
 } from '../../supabase/functions/_shared/dates.ts';
 import { useTeam } from '../lib/useTeam';
 import { useOnline } from '../lib/useOnline';
+import { useToday } from '../lib/useToday';
 import { initials, longDate, tasksSavedAtKey, timeOf } from '../lib/format';
 import AppHeader from '../components/AppHeader';
 import Sheet from '../components/Sheet';
@@ -58,9 +59,11 @@ function sortForView(tasks: Task[], view: TaskView): Task[] {
 }
 
 export default function TasksPage() {
-  const { session, profile } = useAuth();
+  const { session, profile, offline } = useAuth();
   const navigate = useNavigate();
-  const online = useOnline();
+  // Sin token utilizable (sesión sin conexión) tampoco se puede crear ni cambiar nada.
+  const online = useOnline() && !offline;
+  const today = useToday();
   const isSupervisor = profile?.role === 'supervisor';
   const team = useTeam(isSupervisor);
   const userId = session!.user.id;
@@ -80,6 +83,8 @@ export default function TasksPage() {
   const [assigneeFilter, setAssigneeFilter] = useState('');
 
   const load = useCallback(async () => {
+    // Sin token la consulta iría como anónimo y volvería vacía: se conserva lo guardado hasta recuperar la sesión.
+    if (offline) return;
     setError('');
     const { data, error } = await supabase.from('tasks').select(TASK_SELECT).order('due_date', { nullsFirst: false });
     if (error) {
@@ -89,7 +94,7 @@ export default function TasksPage() {
     setTasks(data as Task[]);
     localStorage.setItem(cacheKey, JSON.stringify(data));
     localStorage.setItem(tasksSavedAtKey(userId), String(Date.now()));
-  }, [cacheKey, userId]);
+  }, [cacheKey, userId, offline]);
 
   useEffect(() => {
     load();
@@ -120,7 +125,6 @@ export default function TasksPage() {
     setAssigneeFilter('');
   }
 
-  const today = todayIn(new Date());
   const needle = search.trim().toLocaleLowerCase();
   const filtered = (tasks ?? []).filter(
     (t) =>
