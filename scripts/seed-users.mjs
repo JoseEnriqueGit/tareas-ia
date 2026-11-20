@@ -6,9 +6,9 @@ const key = process.env.SUPABASE_ANON_KEY;
 if (!url || !key) throw new Error('Define SUPABASE_URL y SUPABASE_ANON_KEY');
 
 export const USERS = [
-  { email: 'ana@tareas-ia.dev', password: 'Prueba-Ana-2026', full_name: 'Ana Pérez' },
-  { email: 'beto@tareas-ia.dev', password: 'Prueba-Beto-2026', full_name: 'Beto Gómez' },
-  { email: 'jefa@tareas-ia.dev', password: 'Prueba-Jefa-2026', full_name: 'Carla Jefa' },
+  { email: 'ana@prueba.com', password: 'prueba123', full_name: 'Ana Pérez' },
+  { email: 'beto@prueba.com', password: 'prueba123', full_name: 'Beto Gómez' },
+  { email: 'jefa@prueba.com', password: 'prueba123', full_name: 'Carla Jefa' },
 ];
 
 for (const user of USERS) {

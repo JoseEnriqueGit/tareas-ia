@@ -40,8 +40,8 @@ function check(name, ok, detail) {
   if (!ok) failures++;
 }
 
-const ana = await login('ana@tareas-ia.dev', 'Prueba-Ana-2026');
-const beto = await login('beto@tareas-ia.dev', 'Prueba-Beto-2026');
+const ana = await login('ana@prueba.com', 'prueba123');
+const beto = await login('beto@prueba.com', 'prueba123');
 
 const created = await rest('POST', 'tasks', ana.token, { title: 'Tarea privada de Ana (prueba RLS)' });
 check('Ana crea su tarea (sin permission denied)', created.status === 201, created);
@@ -86,7 +86,7 @@ const anon = await rest('GET', 'tasks?select=id', null);
 check('Anónimo NO puede leer tareas', anon.status === 401 || anon.status === 403, anon);
 
 // Cambio sorpresa: la supervisora ve todo, asigna y filtra por persona.
-const jefa = await login('jefa@tareas-ia.dev', 'Prueba-Jefa-2026');
+const jefa = await login('jefa@prueba.com', 'prueba123');
 const jefaRead = await rest('GET', `tasks?id=eq.${taskId}`, jefa.token);
 check('Supervisora ve la tarea de Ana', jefaRead.status === 200 && jefaRead.body.length === 1, jefaRead);
 

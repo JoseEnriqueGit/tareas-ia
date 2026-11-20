@@ -10,9 +10,9 @@ Escribes en lenguaje natural lo que tienes pendiente ("cobrarle a Juan el vierne
 
 | Usuario | Contraseña | Rol |
 |---|---|---|
-| `ana@tareas-ia.dev` | `Prueba-Ana-2026` | usuario |
-| `beto@tareas-ia.dev` | `Prueba-Beto-2026` | usuario |
-| `jefa@tareas-ia.dev` | `Prueba-Jefa-2026` | supervisora (cambio sorpresa) |
+| `ana@prueba.com` | `prueba123` | usuario |
+| `beto@prueba.com` | `prueba123` | usuario |
+| `jefa@prueba.com` | `prueba123` | supervisora (cambio sorpresa) |
 
 Ana y Beto sirven para comprobar el aislamiento: cada uno solo ve sus tareas.
 
@@ -46,7 +46,7 @@ SUPABASE_URL=https://<ref>.supabase.co SUPABASE_ANON_KEY=<anon> node scripts/see
 
 ```sql
 update public.profiles set role = 'supervisor'
-where id = (select id from auth.users where email = 'jefa@tareas-ia.dev');
+where id = (select id from auth.users where email = 'jefa@prueba.com');
 ```
 
 ### Despliegue (Vercel, gratis)

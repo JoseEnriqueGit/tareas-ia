@@ -1,8 +1,8 @@
 # Guion del video (3 a 5 minutos)
 
 Grabar con el celular mostrando la app instalada desde https://tareas-ia.vercel.app. Antes de empezar:
-- Entrar con la cuenta de Ana (`ana@tareas-ia.dev`), que tiene pocas tareas de demo.
-- Tener abierta en la PC la cuenta de Beto (`beto@tareas-ia.dev`) para el paso 7.
+- Entrar con la cuenta de Ana (`ana@prueba.com`), que tiene pocas tareas de demo.
+- Tener abierta en la PC la cuenta de Beto (`beto@prueba.com`) para el paso 7.
 - Esperar unos 15 segundos entre mensajes al asistente (capa gratuita de Gemini).
 
 | Tiempo | Qué se muestra | Qué se dice |
