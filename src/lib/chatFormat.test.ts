@@ -117,3 +117,16 @@ Deno.test('la fecha en palabras va en minúscula a mitad de frase y con mayúscu
   const start = formatAssistantText('2026-11-20 tienes dos entregas.', today);
   assertEquals(JSON.stringify(start).includes('Mañana tienes dos entregas.'), true, JSON.stringify(start));
 });
+
+Deno.test('la fecha no duplica palabras cuando el modelo ya nombró el día (S12)', () => {
+  const plain = (s: string) =>
+    formatAssistantText(s, '2026-11-19')
+      .map((b) => ('inlines' in b ? b.inlines : b.items.flat()).map((i) => ('text' in i ? i.text : '')).join(''))
+      .join('');
+  assertEquals(plain('Asignada a Beto para el lunes 2026-11-23.'), 'Asignada a Beto para el lunes 23.');
+  assertEquals(plain('La tienes para hoy 2026-11-19.'), 'La tienes para hoy.');
+  assertEquals(plain('Quedó para el viernes 2026-11-20.'), 'Quedó para el viernes 20.');
+  assertEquals(plain('Vence el 2026-11-20.'), 'Vence mañana.');
+  assertEquals(plain('Es del 2026-11-19 y vence el 2026-11-23.'), 'Es de hoy y vence el lunes 23.');
+  assertEquals(plain('Vence el 2026-12-05.'), 'Vence el 5 dic.');
+});

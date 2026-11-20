@@ -15,7 +15,6 @@ const NUMBERED = /^(\s*)\d{1,3}[.)]\s+(.*)$/;
 const RULE = /^\s*([-*_])(?:\s*\1){2,}\s*$/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const TABLE_SEPARATOR = /^\s*\|?(?:\s*:?-{2,}:?\s*\|)+\s*:?-*:?\s*\|?\s*$/;
-const ISO_DATE = /(?<![\d-])\d{4}-\d{2}-\d{2}(?![\d-])/g;
 
 // Código, **negrita**, __negrita__, *cursiva* y _cursiva_. Las marcas simples y __ solo cuentan
 // en bordes de palabra, para no romper snake_case ni "2*3". Lo que no cierra queda como texto.
@@ -30,14 +29,31 @@ const INLINE = new RegExp(
   'gu',
 );
 
-/** "2026-11-20" -> "Mañana" (solo fechas reales); el resto del texto queda igual. */
+// Fecha ISO con la palabra que la precede: un artículo ("el 2026-11-20"), el nombre del día
+// ("el lunes 2026-11-23") o un día relativo ("hoy 2026-11-19"), para no duplicar palabras.
+const DATED =
+  /(?<![\p{L}\p{N}-])(?:(el|del|al|lunes|martes|miércoles|jueves|viernes|sábado|domingo|hoy|mañana|ayer)\s+)?(\d{4}-\d{2}-\d{2})(?![\d-])/giu;
+const WEEKDAYS = /^(lunes|martes|miércoles|jueves|viernes|sábado|domingo)$/i;
+const RELATIVE_DAYS = /^(hoy|mañana|ayer)$/i;
+const ARTICLE_WITHOUT_EL: Record<string, string> = { el: '', del: 'de ', al: 'a ' };
+
+/**
+ * "2026-11-20" -> "mañana" (solo fechas reales), respetando lo que el modelo ya escribió:
+ * "el lunes 2026-11-23" -> "el lunes 23", "hoy 2026-11-19" -> "hoy", "vence el 2026-11-20" -> "vence mañana".
+ */
 function friendlyDates(text: string, today: string): string {
-  return text.replace(ISO_DATE, (date, offset: number, whole: string) => {
-    if (!isValidIsoDate(date)) return date;
+  return text.replace(DATED, (match: string, word: string | undefined, date: string, offset: number, whole: string) => {
+    if (!isValidIsoDate(date)) return match;
+    if (word && WEEKDAYS.test(word)) return `${word} ${Number(date.slice(8, 10))}`;
+    if (word && RELATIVE_DAYS.test(word)) return word;
     const label = dayLabel(date, today);
+    const relative = /^(Hoy|Mañana|Ayer|Hace )/.test(label);
+    let prefix = word ? `${word} ` : '';
+    if (word && relative) prefix = ARTICLE_WITHOUT_EL[word.toLowerCase()];
     // Mayúscula solo al empezar una oración: "Mañana tienes…" pero "vence mañana".
     const before = whole.slice(0, offset).trimEnd();
-    return before === '' || /[.!?¡¿·]$/.test(before) ? label : label[0].toLowerCase() + label.slice(1);
+    const startsSentence = !prefix && (before === '' || /[.!?¡¿·]$/.test(before));
+    return prefix + (startsSentence ? label : label[0].toLowerCase() + label.slice(1));
   });
 }
 

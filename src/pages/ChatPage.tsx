@@ -340,13 +340,17 @@ function ResultCards({ meta, today }: { meta: Meta; today: string }) {
 }
 
 const LISTED_SHOWN = 8;
+// Mismo tope que LISTED_LIMIT en supabase/functions/agent/tools.ts.
+const LISTED_MAX = 20;
 
 /** Tareas que el asistente consultó (listar_tareas), como tarjetas que abren el detalle (S12). */
 function ListedCard({ tasks, today, myName, isSupervisor }: { tasks: ListedTask[]; today: string; myName: string | null; isSupervisor: boolean }) {
   const rest = tasks.length - LISTED_SHOWN;
+  // El backend guarda hasta 20: si llegó al tope, el total real puede ser mayor y no se inventa un número.
+  const capped = tasks.length >= LISTED_MAX;
   return (
     <div className="result-card listed">
-      <h3><TasksIcon size={14} />{tasks.length === 1 ? '1 tarea' : `${tasks.length} tareas`}</h3>
+      <h3><TasksIcon size={14} />{tasks.length === 1 ? '1 tarea' : `${capped ? 'Al menos ' : ''}${tasks.length} tareas`}</h3>
       {tasks.slice(0, LISTED_SHOWN).map((task) => {
         const done = task.status === 'done';
         const late = !done && !!task.due_date && task.due_date < today;
@@ -371,7 +375,7 @@ function ListedCard({ tasks, today, myName, isSupervisor }: { tasks: ListedTask[
       })}
       {rest > 0 && (
         <Link to="/" className="result-more">
-          <span className="result-main">Ver {rest} más en Tareas</span>
+          <span className="result-main">{capped ? 'Ver todas en Tareas' : `Ver ${rest} más en Tareas`}</span>
           <ChevronIcon />
         </Link>
       )}

@@ -6,6 +6,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-19
+
+### Corregido
+- Las fechas del asistente ya no duplican palabras cuando el modelo nombra el día: "el lunes 2026-11-23" se muestra "el lunes 23", "hoy 2026-11-19" se muestra "hoy" y "vence el 2026-11-20" se muestra "vence mañana".
+- Si el asistente consulta 20 tareas o más, la tarjeta dice "Al menos 20 tareas" y "Ver todas en Tareas" en vez de un total que quedaría corto.
+
 ## [1.2.0] - 2026-11-19
 
 ### Añadido
@@ -50,6 +56,7 @@ Primera versión publicada en https://tareas-ia.vercel.app.
 - 15 pruebas automáticas de fechas y de validación de herramientas (RF-30).
 
 [Unreleased]: https://tareas-ia.vercel.app
+[1.2.1]: https://tareas-ia.vercel.app
 [1.2.0]: https://tareas-ia.vercel.app
 [1.1.0]: https://tareas-ia.vercel.app
 [1.0.1]: https://tareas-ia.vercel.app
