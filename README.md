@@ -24,7 +24,7 @@ Requisitos: Node 22+, Deno 2 (pruebas) y el CLI de Supabase.
 npm install
 cp .env.example .env      # completa VITE_SUPABASE_ANON_KEY (Supabase → Project Settings → API Keys → anon public)
 npm run dev               # http://localhost:5173
-npm test                  # 29 pruebas (fechas, herramientas del agente y formato del chat)
+npm test                  # 76 pruebas (fechas, herramientas y prompt del agente, formato del chat, permisos y sesión sin conexión)
 ```
 
 ### Backend desde cero (otro proyecto de Supabase)
@@ -89,7 +89,7 @@ En "Cómo se verificó":
 |---|---|---|---|
 | RF-01 | Registro y login | Hecho | E2E: registro → nombre en el encabezado → cerrar sesión → volver a entrar. |
 | RF-02 | Rutas protegidas | Hecho | E2E: sin sesión, `/asistente` redirige a `/login`. |
-| RF-03 | Aislamiento con RLS | Hecho | API: `node scripts/check-rls.mjs` (18 comprobaciones con Ana, Beto, la supervisora y anónimo). |
+| RF-03 | Aislamiento con RLS | Hecho | API: `node scripts/check-rls.mjs` (24 comprobaciones con Ana, Beto, la supervisora y anónimo, incluidas las tareas asignadas). |
 | RF-04 | Nombre en el encabezado | Hecho | E2E. |
 | RF-05 | Crear tarea manual | Hecho | E2E: aparece en la lista sin recargar. |
 | RF-06 | Vistas Hoy / Próximas / Vencidas / Completadas | Hecho | E2E + pruebas de `taskView`. Sin fecha → Próximas. |

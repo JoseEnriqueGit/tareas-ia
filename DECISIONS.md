@@ -18,7 +18,9 @@ Cada decisión con su porqué y lo que se descartó. Sirve para explicar el proy
   - `UPDATE` sobre `tasks` se concede por columna: `owner_id` no se puede cambiar.
   - En `profiles` solo se puede actualizar `full_name`, así que un usuario no puede hacerse supervisor.
 - **Reasignar:** las políticas no ven el valor anterior de una fila. Por eso un trigger (`tasks_before_write`) impide cambiar el responsable salvo a uno mismo o siendo supervisor.
-- **Verificación:** `scripts/check-rls.mjs` llama a la API REST directamente con usuarios reales (18 comprobaciones).
+- **Tareas asignadas (1.3.0):** quien recibe una tarea asignada por un supervisor solo puede cambiarle el estado (duda nº 8). Lo impone el trigger `tasks_before_write` (migración `20261120120000`), no solo la interfaz; editar y eliminar quedan para quien la creó o un supervisor. Las ediciones de administración fuera de la API (`auth.uid()` nulo) no se limitan.
+- **Filas afectadas:** con RLS, un borrado o una edición no permitidos no dan error: afectan 0 filas. La app cuenta las filas y lo informa, en vez de fingir éxito.
+- **Verificación:** `scripts/check-rls.mjs` llama a la API REST directamente con usuarios reales (24 comprobaciones).
 
 ## 4. La fecha límite es un `date` y "hoy" se calcula en `America/Santo_Domingo`
 - **Por qué:** el brief habla de días ("mañana", "el viernes"), no de horas. Con `timestamptz`, una tarea "para hoy" creada a las 23:30 cae al día siguiente en UTC.
