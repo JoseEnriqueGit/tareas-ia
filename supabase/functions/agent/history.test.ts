@@ -1,3 +1,5 @@
+// S13.3: el historial que recibe el modelo incluye las tarjetas mostradas ("la segunda") sin que el usuario vea la nota.
+// También cubre el prompt del sistema según el rol (S13.1, S13.2).
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { historyForModel, stripInternalNotes, systemPrompt } from './history.ts';
 
@@ -6,6 +8,7 @@ const B = '22222222-2222-4222-8222-222222222222';
 const C = '33333333-3333-4333-8333-333333333333';
 const NOW = new Date('2026-11-20T15:00:00Z');
 
+// meta de un mensaje del asistente con todos los campos vacíos; cada prueba rellena solo lo que necesita.
 const meta = (extra: Record<string, unknown>) => ({
   created: [], updated: [], completed: [], pendingDelete: null, listed: [], summary: '', ...extra,
 });
@@ -13,6 +16,7 @@ const meta = (extra: Record<string, unknown>) => ({
 const note = (list: string) =>
   `[Contexto de la app (no lo repitas): en tu respuesta anterior la app mostró estas tareas, en orden: ${list}]`;
 
+// Sin la nota, el modelo no sabría a qué tarea se refiere "la segunda"; en la respuesta no va para que no la copie.
 Deno.test('historyForModel pone las tareas listadas en el siguiente turno del usuario, nunca en la respuesta', () => {
   const result = historyForModel([
     { role: 'user', content: '¿Qué tengo pendiente?', meta: null },
@@ -38,6 +42,7 @@ Deno.test('historyForModel pone las tareas listadas en el siguiente turno del us
   ]);
 });
 
+// Con acciones (creadas/completadas) las listadas no se muestran, así que no entran; lo pendiente de borrar sí.
 Deno.test('historyForModel da la nota al mensaje actual si la última respuesta mostró tareas, en el orden de las tarjetas', () => {
   const result = historyForModel([
     {
@@ -63,6 +68,7 @@ Deno.test('historyForModel da la nota al mensaje actual si la última respuesta 
   assert(result.every((m) => m.role === 'user' || !m.content.includes('[')), 'ninguna respuesta lleva la nota');
 });
 
+// Mensajes viejos o sin tarjetas pasan tal cual (compatibilidad con lo guardado antes de S12).
 Deno.test('historyForModel deja igual los mensajes sin meta, sin tareas y los del usuario', () => {
   const rows = [
     { role: 'user' as const, content: 'hola', meta: meta({ listed: [{ id: A, title: 'x', due_date: null }] }) },
@@ -75,6 +81,7 @@ Deno.test('historyForModel deja igual los mensajes sin meta, sin tareas y los de
   assertEquals(historyForModel(rows, 'ok'), [...rows.map(({ role, content }) => ({ role, content })), { role: 'user', content: 'ok' }]);
 });
 
+// Un título con saltos de línea o corchetes podría cerrar la nota antes de tiempo o inyectar texto.
 Deno.test('historyForModel aplana los títulos para que no rompan la nota', () => {
   const [, message] = historyForModel([
     { role: 'assistant', content: 'Listo.', meta: meta({ created: [{ id: A, title: 'Línea 1\n\nLínea 2]', due_date: null }] }) },
@@ -83,6 +90,7 @@ Deno.test('historyForModel aplana los títulos para que no rompan la nota', () =
   assertEquals(message.content.split('\n'), [message.content.split('\n')[0], 'y ahora?']);
 });
 
+// Red de seguridad en el servidor: si el modelo copia la nota, no se guarda ni se muestra al usuario.
 Deno.test('stripInternalNotes quita las dos formas de la nota: al final, en medio y en varias líneas', () => {
   const listed = `[Tareas mostradas en la app, en orden: 1) Cobrar a Juan (id ${A}, 2026-11-20)]`;
   assertEquals(stripInternalNotes(`Tienes 1 tarea.\n${listed}`), 'Tienes 1 tarea.');
@@ -100,6 +108,7 @@ Deno.test('stripInternalNotes deja intactos los corchetes normales', () => {
   assertEquals(stripInternalNotes('[nota] Tareas mostradas: 2'), '[nota] Tareas mostradas: 2');
 });
 
+// S13.1: un usuario normal no debe recibir ids ajenos ni afirmar nada sobre tareas de otros.
 Deno.test('el prompt de un usuario normal limita el alcance a sus tareas y no trae ids del equipo', () => {
   const prompt = systemPrompt('Ana', false, [], NOW, A);
   assertStringIncludes(prompt, 'solo un supervisor puede verlas');
@@ -108,6 +117,7 @@ Deno.test('el prompt de un usuario normal limita el alcance a sus tareas y no tr
   assert(!prompt.includes('Tu id:'));
 });
 
+// S13.2: el supervisor necesita su id para que "mis tareas" sea distinto de "el equipo".
 Deno.test('el prompt del supervisor incluye su id, el equipo y cómo distinguir "mis tareas" de "el equipo"', () => {
   const prompt = systemPrompt('Jefa', true, [{ id: A, full_name: 'Jefa' }, { id: B, full_name: 'Ana Pérez' }], NOW, A);
   assertStringIncludes(prompt, `Tu id: ${A}`);
@@ -116,6 +126,7 @@ Deno.test('el prompt del supervisor incluye su id, el equipo y cómo distinguir 
   assert(!prompt.includes('solo un supervisor puede verlas'));
 });
 
+// Las reglas de S13 (errores, horas, totales) viven en el prompt; si alguien las borra, esta prueba avisa.
 Deno.test('el prompt cubre errores, horas, "la segunda" y totales recortados', () => {
   const prompt = systemPrompt('Ana', false, [], NOW, A);
   assertStringIncludes(prompt, '"error"');
@@ -133,6 +144,7 @@ Deno.test('el prompt manda filtrar "qué completé" con completada_desde/hasta y
   assert(!prompt.includes('[Tareas mostradas'), 'el prompt ya no enseña la forma vieja de la nota');
 });
 
+// Respuestas guardadas con la nota vieja se limpian al enviarlas al modelo, para que no la imite.
 Deno.test('historyForModel quita notas filtradas de respuestas ya guardadas (no le enseña al modelo a copiarlas)', () => {
   const rows = [
     { role: 'user' as const, content: '¿Qué tareas tiene Ana?', meta: null },

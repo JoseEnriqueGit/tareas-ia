@@ -1,4 +1,5 @@
 // Prueba de Deno (npm test). Temporizador del cambio de día con la app abierta (S14.6, S15.2).
+// Si el cálculo falla, Hoy/Vencidas no cambian a medianoche (hora de Santo Domingo) con la app abierta.
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import { addDays, todayIn } from '../../supabase/functions/_shared/dates.ts';
 import { msUntilNextDay } from './dayTimer.ts';
@@ -20,6 +21,7 @@ Deno.test('msUntilNextDay: al mediodía local faltan 12 h', () => {
   assertEquals(msUntilNextDay(new Date('2026-11-20T16:00:00Z')), 12 * HOUR + SECOND);
 });
 
+// El cambio de año es el caso donde más fácil falla sumar un día.
 Deno.test('msUntilNextDay: cambio de año (31 dic 23:59:59 local)', () => {
   const now = new Date('2027-01-01T03:59:59Z');
   assertEquals(todayIn(now), '2026-12-31');
@@ -27,6 +29,7 @@ Deno.test('msUntilNextDay: cambio de año (31 dic 23:59:59 local)', () => {
   assertEquals(todayIn(new Date(now.getTime() + msUntilNextDay(now))), '2027-01-01');
 });
 
+// Barrido de un día completo: nunca un retardo 0 o negativo (bucle de timers) y siempre cae en el día siguiente.
 Deno.test('msUntilNextDay: siempre positivo y despierta ya en el día siguiente (cada 7 min de un día)', () => {
   const start = Date.parse('2026-11-20T00:00:00Z');
   for (let at = start; at < start + DAY + HOUR; at += 7 * 60_000) {

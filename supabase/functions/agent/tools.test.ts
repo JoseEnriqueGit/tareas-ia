@@ -1,3 +1,5 @@
+// RF-14/RF-30 (S5): el modelo no escribe en la base; el backend valida cada herramienta y aplica los permisos.
+// Si fallan, un id inventado o un parámetro malo llegaría a la base, o un usuario vería/tocar tareas ajenas.
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { emptyActions, parseArgs, parseClientId, runTool, toolDefinitions } from './tools.ts';
 
@@ -16,6 +18,7 @@ Deno.test('crear_tarea acepta título, fecha y prioridad válidos', () => {
   assertEquals(result.data, { titulo: 'Cobrarle a Juan', fecha_limite: '2026-11-20', prioridad: 'alta' });
 });
 
+// Cada rechazo debe nombrar el campo para que el modelo corrija el parámetro y reintente.
 Deno.test('crear_tarea rechaza título vacío, fecha imposible y prioridad desconocida', () => {
   const empty = parseArgs('crear_tarea', '{"titulo":"   "}');
   assert(!empty.ok);
@@ -30,6 +33,7 @@ Deno.test('crear_tarea rechaza título vacío, fecha imposible y prioridad desco
   assertStringIncludes(badPriority.error, 'prioridad');
 });
 
+// Si el modelo inventa un id ("la de Juan"), la herramienta no debe tocar la base.
 Deno.test('completar_tarea exige un id uuid y argumentos JSON válidos', () => {
   assert(parseArgs('completar_tarea', `{"id":"${ID}"}`).ok);
   const notUuid = parseArgs('completar_tarea', '{"id":"la de Juan"}');
@@ -54,6 +58,7 @@ Deno.test('runTool no toca la base si los parámetros son inválidos o la herram
   assertEquals(ctx.actions, emptyActions());
 });
 
+// A partir de aquí, las pruebas usan bases falsas que devuelven filas guionadas y registran qué consultas se hicieron.
 /**
  * Base falsa: cada consulta encadenable devuelve, al resolverse, el siguiente lote de filas.
  * `calls` registra cada método llamado con sus argumentos; `counts` es el `count` de cada lote.
@@ -86,11 +91,13 @@ function fakeDb(batches: unknown[][], counts: (number | null)[] = []) {
 /** Base que falla si se usa: prueba que la herramienta respondió sin consultar. */
 const noDb = () => new Proxy({}, { get: () => { throw new Error('no debería usarse la base'); } });
 
+// Fila de tarea como la devuelve la base (valores en inglés); `extra` pisa los campos que cada prueba necesita.
 const row = (id: string, title: string, extra: Record<string, unknown> = {}) => ({
   id, title, description: null, due_date: '2026-11-20', priority: 'high', status: 'pending', owner_id: ID,
   assignee: { id: ID, full_name: 'Ana Pérez' }, ...extra,
 });
 
+// actions.listed alimenta las tarjetas: salen de la base, no de lo que diga el modelo, y sin duplicados.
 Deno.test('listar_tareas llena actions.listed con valores de la base, sin repetir ids y en orden', async () => {
   const A = '11111111-1111-4111-8111-111111111111';
   const B = '22222222-2222-4222-8222-222222222222';
@@ -114,6 +121,7 @@ Deno.test('listar_tareas llena actions.listed con valores de la base, sin repeti
   assertEquals([ctx.actions.created, ctx.actions.updated, ctx.actions.completed, ctx.actions.pendingDelete], [[], [], [], null]);
 });
 
+// Tope de tarjetas: una lista larga no debe saturar el chat, pero el total real se informa.
 Deno.test('actions.listed guarda como máximo 20 tareas', async () => {
   const rows = Array.from({ length: 25 }, (_, i) => row(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, `Tarea ${i}`));
   const ctx = { db: fakeDb([rows]) as never, userId: ID, isSupervisor: false, actions: emptyActions() };
@@ -123,6 +131,7 @@ Deno.test('actions.listed guarda como máximo 20 tareas', async () => {
   assertEquals(ctx.actions.listed[19].title, 'Tarea 19');
 });
 
+// Asignar a otros es solo del supervisor (S8); se rechaza antes de consultar.
 Deno.test('un usuario normal no puede asignar tareas a otra persona', async () => {
   const db = new Proxy({}, { get: () => { throw new Error('no debería usarse la base'); } });
   const ctx = { db: db as never, userId: ID, isSupervisor: false, actions: emptyActions() };
@@ -137,6 +146,7 @@ const OTHER = '44444444-4444-4444-8444-444444444444';
 // 03:30 UTC del 20 = jueves 19, 23:30 en Santo Domingo: en UTC ya sería el 20.
 const NEAR_MIDNIGHT = new Date('2026-11-20T03:30:00Z');
 
+// S13.1: el modelo recibe el alcance para no afirmar nada sobre tareas que el usuario no puede ver.
 Deno.test('listar_tareas dice el alcance: solo las propias para un usuario, todo el equipo para un supervisor', async () => {
   const user = JSON.parse(await runTool('listar_tareas', '{}', {
     db: fakeDb([[]]) as never, userId: ID, isSupervisor: false, actions: emptyActions(), now: NEAR_MIDNIGHT,
@@ -149,6 +159,7 @@ Deno.test('listar_tareas dice el alcance: solo las propias para un usuario, todo
   assertEquals(supervisor.alcance, 'todo el equipo');
 });
 
+// S13.4: con 57 en la base y 3 devueltas, el modelo no debe decir "tienes 3".
 Deno.test('listar_tareas devuelve el total real (count exact) y cuántas se muestran', async () => {
   const rows = Array.from({ length: 3 }, (_, i) => row(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, `Tarea ${i}`));
   const db = fakeDb([rows], [57]);
@@ -163,6 +174,7 @@ Deno.test('listar_tareas devuelve el total real (count exact) y cuántas se mues
   assert(db.calls.some(([method, n]) => method === 'limit' && n === 50));
 });
 
+// S13.6/S13.7: vencida y cuando se calculan en el servidor con la fecha de Santo Domingo, no los adivina el modelo.
 Deno.test('listar_tareas calcula vencida, cuando, creada_el y completada_el con la hora de Santo Domingo', async () => {
   const D = '55555555-5555-4555-8555-555555555555';
   const db = fakeDb([[
@@ -186,6 +198,7 @@ Deno.test('listar_tareas calcula vencida, cuando, creada_el y completada_el con 
   ]);
 });
 
+// S13.9: una sola eliminación pendiente por mensaje; la segunda no debe pisar a la primera.
 Deno.test('una segunda eliminar_tarea en el mismo mensaje devuelve error y no consulta la base', async () => {
   const actions = emptyActions();
   const first = JSON.parse(await runTool('eliminar_tarea', `{"id":"${ID}"}`, {
@@ -201,6 +214,7 @@ Deno.test('una segunda eliminar_tarea en el mismo mensaje devuelve error y no co
   assertEquals(actions.pendingDelete, { id: ID, title: 'Cobrar a Juan', due_date: '2026-11-20' });
 });
 
+// S13.11: el mensaje de error debe decir lo que el usuario intentó (ver vs asignar), si no confunde al modelo.
 Deno.test('responsable_id ajeno: listar_tareas habla de ver y crear_tarea de asignar, sin tocar la base', async () => {
   const ctx = { db: noDb() as never, userId: ID, isSupervisor: false, actions: emptyActions(), now: NEAR_MIDNIGHT };
   const list = JSON.parse(await runTool('listar_tareas', `{"responsable_id":"${OTHER}"}`, ctx));
@@ -210,9 +224,11 @@ Deno.test('responsable_id ajeno: listar_tareas habla de ver y crear_tarea de asi
   assertEquals(ctx.actions, emptyActions());
 });
 
+// Solo los filtros de fecha/estado que se enviaron a la base.
 const filters = (db: { calls: [string, ...unknown[]][] }) =>
   db.calls.filter(([method]) => ['eq', 'neq', 'gte', 'lt', 'lte'].includes(method));
 
+// "Qué completé hoy" se filtra en el servidor con los límites del día local; el modelo no decide leyendo fechas.
 Deno.test('completada_desde/hasta filtran completed_at por días de Santo Domingo y por defecto piden las hechas', async () => {
   const db = fakeDb([[row(ID, 'Cobrar a Juan', { status: 'done', completed_at: '2026-11-20T15:00:00Z' })]]);
   const ctx = { db: db as never, userId: ID, isSupervisor: false, actions: emptyActions(), now: new Date('2026-11-20T15:00:00Z') };
@@ -238,6 +254,7 @@ Deno.test('completada_desde/hasta filtran completed_at por días de Santo Doming
   assertEquals(filters(open), [['neq', 'status', 'done']]);
 });
 
+// Una fecha mala se rechaza antes de consultar (y las dos opciones existen en la definición de la herramienta).
 Deno.test('completada_desde/hasta con fecha inválida se rechazan sin tocar la base', async () => {
   const ctx = { db: noDb() as never, userId: ID, isSupervisor: false, actions: emptyActions(), now: NEAR_MIDNIGHT };
   const bad = JSON.parse(await runTool('listar_tareas', '{"completada_desde":"2026-02-30"}', ctx));
@@ -259,6 +276,7 @@ Deno.test('eliminar_tarea rechaza al responsable que no creó la tarea y no deja
   assertEquals(actions, emptyActions());
 });
 
+// La base devuelve owner_id: se comprueba el permiso con ese dato, no con lo que diga el modelo.
 Deno.test('eliminar_tarea deja pendiente la tarea para quien la creó y para un supervisor', async () => {
   const owner = emptyActions();
   const db = fakeDb([[row(OTHER, 'Mía', { owner_id: ID })]]);
@@ -285,6 +303,7 @@ Deno.test('actualizar_tarea rechaza cambiar campos de una tarea solo asignada, s
   }
 });
 
+// Guion: primero la fila con owner_id (permiso) y luego la fila actualizada; update debe llevar solo lo permitido.
 Deno.test('actualizar_tarea deja cambiar el estado al responsable y los campos al creador o al supervisor', async () => {
   const assignee = emptyActions();
   const statusDb = fakeDb([[row(OTHER, 'Asignada', { owner_id: OTHER, status: 'in_progress' })]]);
@@ -306,6 +325,7 @@ Deno.test('actualizar_tarea deja cambiar el estado al responsable y los campos a
   assertEquals(boss.updated, [{ id: OTHER, title: 'Otro título', due_date: '2026-11-20' }]);
 });
 
+// Completar es estado: el endurecimiento de S14.2 no debe bloquearlo.
 Deno.test('completar_tarea sigue funcionando para el responsable que no creó la tarea', async () => {
   const actions = emptyActions();
   const result = JSON.parse(await runTool('completar_tarea', `{"id":"${OTHER}"}`, {
@@ -316,6 +336,7 @@ Deno.test('completar_tarea sigue funcionando para el responsable que no creó la
 });
 
 // S14.5: idempotencia del chat por clientId.
+// El clientId viene del cliente: debe ser uuid, porque se guarda y se usa para la reserva.
 Deno.test('parseClientId acepta un uuid o nada y rechaza otros valores', () => {
   assertEquals(parseClientId(undefined), { ok: true, clientId: null });
   assertEquals(parseClientId(null), { ok: true, clientId: null });

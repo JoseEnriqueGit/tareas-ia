@@ -1,4 +1,6 @@
 // Prueba de Deno (npm test). tsconfig.json excluye los *.test.ts; permissions.ts sí lo revisan tsc y Deno.
+// S14.1/S14.2: solo el creador o un supervisor borra y edita campos; el responsable solo cambia el estado.
+// Debe coincidir con las políticas de la base: si no, la interfaz ofrecería acciones que la base rechaza.
 import { assertEquals } from 'jsr:@std/assert@1';
 import { canDelete, canEditFields } from './permissions.ts';
 

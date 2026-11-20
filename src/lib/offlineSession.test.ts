@@ -1,4 +1,5 @@
 // Prueba de Deno (npm test). tsconfig.json excluye los *.test.ts; offlineSession.ts sí lo revisan tsc y Deno.
+// RF-24 (S14.4): sin red y con el token vencido la app abre con las últimas tareas; con rechazo real, va al login.
 import { assertEquals } from 'jsr:@std/assert@1';
 import {
   authStorageKey,
@@ -11,6 +12,7 @@ import {
   type StoredUser,
 } from './offlineSession.ts';
 
+// NOW fijo y claves de ejemplo: las decisiones son puras, no tocan el navegador ni la red.
 const KEY = 'sb-abcd-auth-token';
 const NOW = Date.UTC(2026, 10, 20, 15, 0, 0);
 const seconds = (ms: number) => Math.floor(ms / 1000);
@@ -32,6 +34,7 @@ const storageWith = (value: string | null) => ({ getItem: (key: string) => (key 
 
 const expiredUser: StoredUser = { id: 'u-1', email: 'ana@example.com', expired: true };
 const validUser: StoredUser = { id: 'u-1', email: 'ana@example.com', expired: false };
+// networkError = sin red o 5xx (reintentable); rejectedError = Supabase rechazó el token (sesión inválida).
 const networkError = { name: 'AuthRetryableFetchError', message: 'Failed to fetch', status: 0 };
 const rejectedError = { name: 'AuthApiError', message: 'Invalid Refresh Token: Refresh Token Not Found', status: 400 };
 
@@ -40,6 +43,7 @@ Deno.test('la clave del token es la misma que usa supabase-js: sb-<ref>-auth-tok
   assertEquals(authStorageKey('https://xyzproj.supabase.co/'), 'sb-xyzproj-auth-token');
 });
 
+// Esta lectura corre sin sesión válida: no debe exponer access/refresh token a la interfaz.
 Deno.test('readStoredUser devuelve solo id, email y si el token venció (nunca los tokens)', () => {
   assertEquals(readStoredUser(storageWith(storedSession(seconds(NOW) + 3600)), KEY, NOW), validUser);
   assertEquals(readStoredUser(storageWith(storedSession(seconds(NOW) - 60)), KEY, NOW), expiredUser);
@@ -48,6 +52,7 @@ Deno.test('readStoredUser devuelve solo id, email y si el token venció (nunca l
   assertEquals(JSON.stringify(user).includes('secret'), false);
 });
 
+// Si no se respeta el margen, se creería válido un token que auth-js ya intentaría refrescar.
 Deno.test('readStoredUser cuenta como vencido el token dentro del margen de 90 s de auth-js', () => {
   assertEquals(readStoredUser(storageWith(storedSession(seconds(NOW) + 60)), KEY, NOW)?.expired, true);
   assertEquals(readStoredUser(storageWith(storedSession(seconds(NOW) + 91)), KEY, NOW)?.expired, false);
@@ -58,6 +63,7 @@ Deno.test('readStoredUser sin email lo deja undefined', () => {
   assertEquals(readStoredUser(storageWith(raw), KEY, NOW), { id: 'u-2', email: undefined, expired: true });
 });
 
+// Datos corruptos o localStorage bloqueado no deben tumbar el arranque: se trata como sin sesión.
 Deno.test('readStoredUser devuelve null si no hay una sesión utilizable guardada', () => {
   assertEquals(readStoredUser(storageWith(null), KEY, NOW), null);
   assertEquals(readStoredUser(storageWith('{no es json'), KEY, NOW), null);
@@ -70,6 +76,7 @@ Deno.test('readStoredUser devuelve null si no hay una sesión utilizable guardad
   assertEquals(readStoredUser(throwing, KEY, NOW), null);
 });
 
+// Un rechazo del servidor no es un fallo de red: confundirlos dejaría entrar sin sesión válida.
 Deno.test('isNetworkError: solo el error reintentable de auth-js (sin red o 5xx)', () => {
   assertEquals(isNetworkError(networkError), true);
   assertEquals(isNetworkError(rejectedError), false);
@@ -77,6 +84,7 @@ Deno.test('isNetworkError: solo el error reintentable de auth-js (sin red o 5xx)
   assertEquals(isNetworkError(new Error('Failed to fetch')), false);
 });
 
+// Esperar a getSession sin red deja la pantalla congelada (S4): se decide antes.
 Deno.test('decideStart: sin red y con el token vencido se abre sin conexión sin esperar a getSession', () => {
   assertEquals(decideStart(false, expiredUser), 'offline');
   assertEquals(decideStart(false, validUser), 'wait');
@@ -89,6 +97,7 @@ Deno.test('decideWithoutSession: sin red y con sesión guardada, modo sin conexi
   assertEquals(decideWithoutSession({ online: false, stored: expiredUser, error: null }), 'offline');
 });
 
+// Con red, solo un rechazo explícito cierra la sesión; un fallo pasajero no debe expulsar al usuario.
 Deno.test('decideWithoutSession: con red, un fallo de red mantiene el modo sin conexión; un rechazo lleva al login', () => {
   assertEquals(decideWithoutSession({ online: true, stored: expiredUser, error: networkError }), 'offline');
   assertEquals(decideWithoutSession({ online: true, stored: expiredUser, error: rejectedError }), 'login');
@@ -100,11 +109,13 @@ Deno.test('decideWithoutSession: sin sesión guardada siempre es el login', () =
   assertEquals(decideWithoutSession({ online: true, stored: null, error: null }), 'login');
 });
 
+// Al cerrar sesión se borran solo los datos propios del modo sin conexión, no el chat ni claves ajenas.
 Deno.test('offlineDataKeys: el perfil y las tareas guardadas, nada más', () => {
   const keys = ['profile', 'tasks:u-1', 'tasks:u-1:at', 'sb-abcd-auth-token', 'chat:u-1', 'profiles', 'mytasks:x'];
   assertEquals(offlineDataKeys(keys), ['profile', 'tasks:u-1', 'tasks:u-1:at']);
 });
 
+// Falso localStorage en memoria; `map` deja ver qué claves quedaron.
 /** Almacenamiento con la interfaz de localStorage (length, key, removeItem). */
 function memoryStorage(entries: Record<string, string>) {
   const map = new Map(Object.entries(entries));

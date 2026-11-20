@@ -1,3 +1,5 @@
+// RF-19 (S6): fechas en America/Santo_Domingo, también cerca de medianoche, y etiquetas en palabras (S11, S13).
+// Si fallan, "mañana" o "el viernes" se guardan con la fecha equivocada.
 import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
 import { addDays, dateContext, dayLabel, endOfWeek, isValidIsoDate, startOfDayUtc, taskView, todayIn, UPCOMING_GROUPS, upcomingGroup, whenLabel } from './dates.ts';
 
@@ -10,6 +12,7 @@ Deno.test('todayIn usa America/Santo_Domingo y no UTC cerca de medianoche', () =
   assertEquals(todayIn(new Date('2026-11-20T04:00:00Z')), '2026-11-20');
 });
 
+// Es la tabla que lee el modelo: a las 23:30 locales UTC ya es el día siguiente y no debe confundirlo.
 Deno.test('dateContext resuelve "mañana" y "el viernes" a las 23:30 locales', () => {
   // Jueves 19 de noviembre de 2026, 23:30 en Santo Domingo.
   const context = dateContext(new Date('2026-11-20T03:30:00Z'));
@@ -41,6 +44,7 @@ Deno.test('endOfWeek devuelve el domingo, y el mismo día si ya es domingo', () 
   assertEquals(endOfWeek('2026-11-22'), '2026-11-22'); // domingo
 });
 
+// Cada tarea debe caer en la vista correcta (S3); sin fecha cuenta como Próxima.
 Deno.test('taskView clasifica en Hoy, Próximas, Vencidas y Completadas', () => {
   const today = '2026-11-19';
   assertEquals(taskView({ status: 'pending', due_date: '2026-11-19' }, today), 'today');
@@ -71,6 +75,7 @@ Deno.test('upcomingGroup agrupa Próximas por cercanía y deja "Sin fecha" al fi
   assertEquals(UPCOMING_GROUPS.at(-1), 'Sin fecha');
 });
 
+// Con 14 días el modelo resuelve "el viernes de la otra semana" sin calcular fechas él mismo.
 Deno.test('dateContext cubre 14 días y dice cuándo es la próxima semana', () => {
   // Jueves 19 de noviembre de 2026, 23:30 en Santo Domingo.
   const context = dateContext(new Date('2026-11-20T03:30:00Z'));
@@ -84,6 +89,7 @@ Deno.test('dateContext cubre 14 días y dice cuándo es la próxima semana', () 
   assertStringIncludes(context, '"La próxima semana" va de 2026-11-23 a 2026-11-29');
 });
 
+// creada_el/completada_el (S13.6): la hora se muestra en Santo Domingo, no en UTC.
 Deno.test('whenLabel da fecha y hora en Santo Domingo: hoy, ayer, día de la semana o fecha corta', () => {
   const now = new Date('2026-11-20T03:30:00Z'); // jueves 19, 23:30 locales
   assertEquals(whenLabel('2026-11-20T03:10:00Z', now), 'hoy, 23:10');
@@ -94,6 +100,7 @@ Deno.test('whenLabel da fecha y hora en Santo Domingo: hoy, ayer, día de la sem
   assertEquals(whenLabel(null, now), null);
 });
 
+// Sirve para filtrar "completadas hoy" (completada_desde); un desfase de zona traería tareas de otro día.
 Deno.test('startOfDayUtc da el inicio del día local como instante UTC, también al cambiar de mes y año', () => {
   // Santo Domingo es UTC-4: la medianoche local es a las 04:00 UTC del mismo día.
   assertEquals(startOfDayUtc('2026-11-20'), '2026-11-20T04:00:00.000Z');

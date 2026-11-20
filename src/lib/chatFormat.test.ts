@@ -1,15 +1,18 @@
 // Prueba de Deno (npm test). tsconfig.json excluye los *.test.ts; chatFormat.ts sí lo revisan tsc y Deno.
+// S12/S13: el texto del asistente se muestra con formato seguro (sin HTML), con fechas en palabras y sin notas internas.
 import { assertEquals } from 'jsr:@std/assert@1';
 import { formatAssistantText, type Block } from './chatFormat.ts';
 
 const TODAY = '2026-11-19'; // jueves
 
+// Atajos para armar los bloques esperados.
 const text = (value: string) => ({ type: 'text' as const, text: value });
 const bold = (value: string) => ({ type: 'bold' as const, text: value });
 const italic = (value: string) => ({ type: 'italic' as const, text: value });
 const code = (value: string) => ({ type: 'code' as const, text: value });
 const br = { type: 'break' as const };
 
+// Caso real que reportó el dueño: sin esto se vería texto plano con fechas ISO.
 Deno.test('la respuesta de la captura: introducción + viñetas con fechas en palabras', () => {
   const reply = [
     'Tareas abiertas:',
@@ -58,12 +61,14 @@ Deno.test('negrita, cursiva y código en línea', () => {
   ]);
 });
 
+// Si se tomara como cursiva, se comerían los guiones bajos de nombres de campos y las multiplicaciones.
 Deno.test('snake_case y 2*3 no se vuelven cursiva', () => {
   assertEquals(formatAssistantText('usa due_date_iso y 2*3*4 o a_b', TODAY), [
     { type: 'paragraph', inlines: [text('usa due_date_iso y 2*3*4 o a_b')] },
   ]);
 });
 
+// Un formato a medias no debe esconder texto ni romper el render.
 Deno.test('marcas sin cerrar quedan como texto literal', () => {
   assertEquals(formatAssistantText('Ojo **importante y `sin cerrar', TODAY), [
     { type: 'paragraph', inlines: [text('Ojo **importante y `sin cerrar')] },
@@ -87,6 +92,7 @@ Deno.test('títulos # se vuelven un encabezado (línea en negrita)', () => {
   ]);
 });
 
+// El chat no pinta tablas: se aplana para que siga legible en 360 px.
 Deno.test('una tabla Markdown se degrada a una línea por fila, sin barras', () => {
   const table = '| Tarea | Fecha |\n|---|:---:|\n| Cobrar a Juan | 2026-11-20 |\n| Cotización | 2026-12-05 |';
   assertEquals(formatAssistantText(table, TODAY), [
@@ -97,6 +103,7 @@ Deno.test('una tabla Markdown se degrada a una línea por fila, sin barras', () 
   ]);
 });
 
+// Una fecha imposible (30 feb) no debe traducirse a algo falso.
 Deno.test('fechas ISO inválidas quedan igual; las válidas en negrita también se traducen', () => {
   assertEquals(formatAssistantText('Vence 2026-02-30 o **2026-11-19**', TODAY), [
     { type: 'paragraph', inlines: [text('Vence 2026-02-30 o '), bold('Hoy')] },
@@ -110,6 +117,7 @@ Deno.test('texto vacío no produce bloques; viñetas separadas por línea en bla
   ]);
 });
 
+// Evita "Vence Mañana" y "Mañana tienes" en minúscula: la redacción queda natural.
 Deno.test('la fecha en palabras va en minúscula a mitad de frase y con mayúscula al empezar', () => {
   const today = '2026-11-19';
   const mid = formatAssistantText('Vence 2026-11-20 y la otra el 2026-11-23.', today);
@@ -118,6 +126,7 @@ Deno.test('la fecha en palabras va en minúscula a mitad de frase y con mayúscu
   assertEquals(JSON.stringify(start).includes('Mañana tienes dos entregas.'), true, JSON.stringify(start));
 });
 
+// Si el modelo ya escribió "el lunes", la app no repite el día ("el lunes lunes 23").
 Deno.test('la fecha no duplica palabras cuando el modelo ya nombró el día (S12)', () => {
   const plain = (s: string) =>
     formatAssistantText(s, '2026-11-19')
@@ -131,6 +140,7 @@ Deno.test('la fecha no duplica palabras cuando el modelo ya nombró el día (S12
   assertEquals(plain('Vence el 2026-12-05.'), 'Vence el 5 dic.');
 });
 
+// Si el modelo copia la nota que la app le añade al historial, el usuario no debe verla (fuga de ids).
 Deno.test('la nota interna que copió el modelo no se muestra: ni ids, ni corchetes, ni fechas ISO (S13)', () => {
   const summary =
     'Ana Pérez tiene 4 tareas: una urgente que vence hoy, una para mañana, otra para el viernes 27 y una urgente para el 4 de diciembre.';
@@ -142,6 +152,7 @@ Deno.test('la nota interna que copió el modelo no se muestra: ni ids, ni corche
   for (const leak of ['id ', '[', '2026-11-20', '2026-11-21']) assertEquals(rendered.includes(leak), false, leak);
 });
 
+// Misma protección con la nota de contexto, que puede cruzar saltos de línea; los corchetes del usuario se respetan.
 Deno.test('también se quita la nota de contexto y se conservan los corchetes normales', () => {
   const blocks = formatAssistantText('Hecho [urgente].\n[Contexto de la app (no lo repitas): en tu respuesta anterior\nla app mostró: 1) X (id 1, sin fecha)]\n\nOtra cosa.', TODAY);
   assertEquals(blocks, [

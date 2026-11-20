@@ -1,3 +1,5 @@
+// S14.5/S15.1: reintentar un mensaje del chat no duplica tareas. La reserva del clientId (índice único) manda.
+// Si falla, un reintento durante la primera petición ejecutaría las herramientas dos veces.
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 import {
   decideOnConflict,
@@ -43,6 +45,7 @@ function scriptedDb(script: { data?: unknown; error?: { code?: string; message: 
   };
 }
 
+// UNIQUE simula el rechazo del índice único: ya existe una reserva con ese clientId.
 const UNIQUE = { code: '23505', message: 'duplicate key value violates unique constraint' };
 const input = { userId: USER, clientId: CLIENT, message: 'Cobrar a Juan' };
 
@@ -53,6 +56,7 @@ function spyRun(result: RunResult) {
 }
 const done: RunResult = { kind: 'done', content: 'Creé 1 tarea.', meta: { summary: 'Creé 1 tarea.' } };
 
+// Reintento tras una respuesta ya guardada: se devuelve lo mismo y las herramientas no se vuelven a ejecutar.
 Deno.test('decideOnConflict: si ya hay respuesta guardada, se repite sin procesar', () => {
   assertEquals(decideOnConflict(reservation, reply, at(1_000)), {
     status: 200,
@@ -60,6 +64,7 @@ Deno.test('decideOnConflict: si ya hay respuesta guardada, se repite sin procesa
   });
 });
 
+// La primera petición puede seguir viva: se pide esperar, no se reprocesa.
 Deno.test('decideOnConflict: sin respuesta y reserva reciente, sigue procesando (409 reintentable)', () => {
   assertEquals(decideOnConflict(reservation, null, at(0)), { status: 409, body: PROCESSING });
   assertEquals(decideOnConflict(reservation, null, at(PROCESSING_WINDOW_MS - 1)), { status: 409, body: PROCESSING });
@@ -69,6 +74,7 @@ Deno.test('decideOnConflict: sin respuesta y reserva reciente, sigue procesando 
   });
 });
 
+// Pasada la ventana (150 s) no se sabe si se ejecutó: se avisa en vez de arriesgar duplicados.
 Deno.test('decideOnConflict: sin respuesta y reserva de 150 s o más, no se confirma (409 no reintentable)', () => {
   assertEquals(PROCESSING_WINDOW_MS, 150_000);
   assertEquals(decideOnConflict(reservation, null, at(PROCESSING_WINDOW_MS)), { status: 409, body: STALE });
@@ -79,6 +85,7 @@ Deno.test('decideOnConflict: sin respuesta y reserva de 150 s o más, no se conf
   });
 });
 
+// Camino feliz: la reserva se inserta antes de ejecutar (por eso el índice único cierra la carrera).
 Deno.test('reserva al inicio: guarda el mensaje del usuario con su clientId, ejecuta y guarda solo la respuesta después', async () => {
   const assistant = { ...reply, meta: done.meta };
   const db = scriptedDb([{ data: reservation }, { data: assistant }]);
@@ -92,6 +99,7 @@ Deno.test('reserva al inicio: guarda el mensaje del usuario con su clientId, eje
   assert(!db.calls.some(([method]) => method === 'delete'));
 });
 
+// Si el reloj va atrasado, la respuesta quedaría antes de la pregunta en el historial.
 Deno.test('la respuesta siempre queda después de la reserva aunque el reloj de la función vaya atrasado', async () => {
   const db = scriptedDb([{ data: reservation }, { data: reply }]);
   await handleWithReservation(db as never, input, spyRun(done).run, () => at(-2_000));
@@ -99,6 +107,7 @@ Deno.test('la respuesta siempre queda después de la reserva aunque el reloj de 
   assertEquals(assistantInsert.created_at, at(1).toISOString());
 });
 
+// Guion: insert rechazado, búsqueda de la reserva y búsqueda de la respuesta; ambas filtran por clientId y usuario.
 Deno.test('reintento con el mismo clientId y respuesta guardada: se repite sin ejecutar herramientas', async () => {
   const db = scriptedDb([{ error: UNIQUE }, { data: reservation }, { data: reply }]);
   const spy = spyRun(done);
@@ -130,6 +139,7 @@ Deno.test('reintento de una reserva vieja sin respuesta (la primera ejecución m
   assertEquals(spy.calls, 0);
 });
 
+// Ante la duda (error de base, fila ausente) se falla cerrado: reprocesar en silencio podría duplicar tareas.
 Deno.test('cualquier error al reservar o al buscar: 503 reintentable y nunca se reprocesa en silencio', async () => {
   assertEquals(LOOKUP_FAILED, { error: 'No se pudo guardar tu mensaje. Inténtalo de nuevo.', retryable: true });
   const cases = [
@@ -147,6 +157,7 @@ Deno.test('cualquier error al reservar o al buscar: 503 reintentable y nunca se 
   }
 });
 
+// Sin acciones no hay riesgo de duplicar: se libera la reserva para que el usuario pueda reintentar el mismo mensaje.
 Deno.test('si la ejecución falla antes de cualquier acción, se borra la reserva propia y se devuelve el error', async () => {
   const failed: RunResult = { kind: 'failed', status: 502, body: { error: 'La IA no respondió.', retryable: true } };
   const db = scriptedDb([{ data: reservation }, { data: null }]);
@@ -159,6 +170,7 @@ Deno.test('si la ejecución falla antes de cualquier acción, se borra la reserv
   assertEquals(db.calls.filter(([method]) => method === 'insert').length, 1);
 });
 
+// Las acciones ya ocurrieron: se conserva la reserva (no se borra) para que un reintento no las repita.
 Deno.test('si no se pudo guardar la respuesta, se devuelve igual con un id local (la reserva queda)', async () => {
   const db = scriptedDb([{ data: reservation }, { error: { message: 'timeout' } }]);
   const outcome = await handleWithReservation(db as never, input, spyRun(done).run, () => at(5));
