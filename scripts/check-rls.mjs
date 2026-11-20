@@ -52,8 +52,13 @@ check('Ana ve su tarea', anaRead.status === 200 && anaRead.body.length === 1, an
 const betoRead = await rest('GET', `tasks?id=eq.${taskId}`, beto.token);
 check('Beto NO ve la tarea de Ana', betoRead.status === 200 && betoRead.body.length === 0, betoRead);
 
-const betoAll = await rest('GET', 'tasks?select=owner_id', beto.token);
-check('Beto solo ve tareas propias', betoAll.status === 200 && betoAll.body.every((t) => t.owner_id === beto.id), betoAll);
+// Desde el rol de supervisor, Beto también ve las tareas que le asignaron (no las que no son suyas).
+const betoAll = await rest('GET', 'tasks?select=owner_id,assignee_id', beto.token);
+check(
+  'Beto solo ve tareas creadas por él o asignadas a él',
+  betoAll.status === 200 && betoAll.body.every((t) => t.owner_id === beto.id || t.assignee_id === beto.id),
+  betoAll,
+);
 
 const betoUpdate = await rest('PATCH', `tasks?id=eq.${taskId}`, beto.token, { title: 'hackeada' });
 check('Beto NO puede modificar la tarea de Ana', betoUpdate.status === 200 && betoUpdate.body.length === 0, betoUpdate);
