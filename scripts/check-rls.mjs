@@ -2,7 +2,8 @@
 // Uso: SUPABASE_URL=... SUPABASE_ANON_KEY=... node scripts/check-rls.mjs
 // Crea una tarea de Ana, intenta leerla/modificarla/borrarla como Beto y como anónimo,
 // y la borra al final. Luego (S14.2) la supervisora crea una tarea asignada a Beto para
-// comprobar que Beto solo puede cambiarle el estado, y la borra al final.
+// comprobar que Beto solo puede cambiarle el estado, y la borra al final. Por último (S15.1)
+// comprueba el borrado del propio chat y el índice único por clientId, y borra lo que creó.
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_ANON_KEY;
 if (!url || !key) throw new Error('Define SUPABASE_URL y SUPABASE_ANON_KEY');
@@ -134,6 +135,35 @@ check('Supervisora sí cambia el título', jefaTitle.status === 200 && jefaTitle
 
 const jefaCleanup = await rest('DELETE', `tasks?id=eq.${jefaTaskId}`, jefa.token);
 check('Supervisora borra su tarea de prueba', jefaCleanup.status === 200 && jefaCleanup.body.length === 1, jefaCleanup);
+
+// S15.1: cada usuario borra solo sus mensajes del chat; un clientId se reserva una vez por usuario.
+const clientId = crypto.randomUUID();
+const chatRow = (content) => ({ role: 'user', content, meta: { clientId } });
+
+const anaFirst = await rest('POST', 'chat_messages', ana.token, chatRow('Reserva de prueba RLS'));
+check('Ana reserva un mensaje con clientId', anaFirst.status === 201, anaFirst);
+const anaFirstId = anaFirst.body?.[0]?.id;
+
+const anaDuplicate = await rest('POST', 'chat_messages', ana.token, chatRow('Reserva repetida'));
+check('Ana NO puede reservar dos veces el mismo clientId (violación de único)', anaDuplicate.status === 409 && anaDuplicate.body?.code === '23505', anaDuplicate);
+
+const betoSameId = await rest('POST', 'chat_messages', beto.token, chatRow('Mismo clientId de otro usuario'));
+check('Beto sí puede usar el mismo clientId que Ana', betoSameId.status === 201, betoSameId);
+const betoChatId = betoSameId.body?.[0]?.id;
+
+const betoDeletesAna = await rest('DELETE', `chat_messages?id=eq.${anaFirstId}`, beto.token);
+const anaStillThere = await rest('GET', `chat_messages?id=eq.${anaFirstId}&select=id`, ana.token);
+check(
+  'Beto NO puede borrar el mensaje de Ana (0 filas)',
+  betoDeletesAna.status === 200 && betoDeletesAna.body.length === 0 && anaStillThere.body?.length === 1,
+  { betoDeletesAna, anaStillThere },
+);
+
+const anaDeletes = await rest('DELETE', `chat_messages?id=eq.${anaFirstId}`, ana.token);
+check('Ana borra su propio mensaje', anaDeletes.status === 200 && anaDeletes.body.length === 1, anaDeletes);
+
+const betoDeletes = await rest('DELETE', `chat_messages?id=eq.${betoChatId}`, beto.token);
+check('Beto borra su propio mensaje de prueba', betoDeletes.status === 200 && betoDeletes.body.length === 1, betoDeletes);
 
 console.log(failures ? `\n${failures} verificaciones fallaron` : '\nRLS OK: todas las verificaciones pasaron');
 process.exit(failures ? 1 : 0);
