@@ -59,7 +59,8 @@
 .composer-field.listening { border: 2px solid var(--danger); }
 .composer-field.disabled { background: var(--disabled-bg); }
 .composer-field textarea { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; background: transparent; padding: 11px 0;
-  font-size: 16px; /* evita el zoom de iOS */ line-height: 1.4; max-height: 112px; /* ~4 líneas */ overflow-y: auto; }
+  font-size: 16px; /* evita el zoom de iOS */ line-height: 22px; /* entero: con 1.4 (22,4 px) el alto se redondea y Windows muestra una barra de scroll */
+  max-height: 112px; /* ~4 líneas */ overflow-y: hidden; scrollbar-width: thin; }
 .composer-field textarea:disabled { color: var(--muted); }
 .mic { flex: 0 0 auto; width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); display: grid; place-items: center; }
 .mic.on { background: var(--danger); color: #fff; }

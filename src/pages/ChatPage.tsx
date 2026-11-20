@@ -88,12 +88,14 @@ export default function ChatPage() {
     return () => observer.disconnect();
   }, []);
 
-  // El campo crece con el texto hasta unas 4 líneas (el máximo lo pone chat.css).
+  // El campo crece con el texto hasta unas 4 líneas; solo al pasar ese tope aparece el scroll.
   useLayoutEffect(() => {
     const input = inputRef.current;
     if (!input) return;
     input.style.height = 'auto';
-    input.style.height = `${input.scrollHeight}px`;
+    const max = parseFloat(getComputedStyle(input).maxHeight);
+    input.style.height = `${Math.min(input.scrollHeight, max)}px`;
+    input.style.overflowY = input.scrollHeight > max ? 'auto' : 'hidden';
   }, [text]);
 
   useEffect(() => {
