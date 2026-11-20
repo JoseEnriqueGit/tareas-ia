@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { addDays, startOfDayUtc, todayIn } from '../../supabase/functions/_shared/dates.ts';
+import { todayIn } from '../../supabase/functions/_shared/dates.ts';
+import { msUntilNextDay } from './dayTimer';
 
 /** Día de hoy en Santo Domingo ("YYYY-MM-DD"); cambia al pasar la medianoche con la app abierta (S14.6). */
 export function useToday(): string {
@@ -9,11 +10,9 @@ export function useToday(): string {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const update = () => {
       const now = new Date();
-      const day = todayIn(now);
-      setToday(day);
-      // Un segundo de holgura para no despertar justo antes de la medianoche.
+      setToday(todayIn(now));
       clearTimeout(timer);
-      timer = setTimeout(update, Date.parse(startOfDayUtc(addDays(day, 1))) - now.getTime() + 1000);
+      timer = setTimeout(update, msUntilNextDay(now));
     };
     // Con el equipo suspendido el temporizador se atrasa: se recalcula al volver a la app.
     const onVisible = () => {

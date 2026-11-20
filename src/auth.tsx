@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, type Profile } from './lib/supabase';
-import { authStorageKey, decideStart, decideWithoutSession, offlineDataKeys, readStoredUser } from './lib/offlineSession';
+import { authStorageKey, decideStart, decideWithoutSession, forgetStoredSession, offlineDataKeys, readStoredUser } from './lib/offlineSession';
 
 /** Lo que las pantallas usan de la sesión. Sin conexión y con el token vencido solo se conoce el usuario. */
 type AuthSession = { user: { id: string; email?: string } };
@@ -28,6 +28,9 @@ function cachedProfile(userId: string): Profile | null {
   const cached = raw ? (JSON.parse(raw) as Profile) : null;
   return cached?.id === userId ? cached : null;
 }
+
+/** Lo registra AuthProvider: deja el estado en "sin sesión" cuando auth-js no pudo cerrarla (ver signOut). */
+let forceSignedOut: (() => void) | null = null;
 
 /** Borra los datos guardados para uso sin conexión: no deben quedar en el dispositivo. */
 function clearOfflineData() {
@@ -84,6 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (offline) recover();
     }
 
+    forceSignedOut = () => {
+      clearTimeout(retry);
+      offline = false;
+      setState({ session: null, profile: null, loading: false, offline: false });
+    };
+
     // Sin red y con el token vencido, getSession() tarda en rendirse: se muestra ya lo guardado.
     if (decideStart(navigator.onLine, readStoredUser(localStorage, SESSION_KEY, Date.now())) === 'offline') load(null);
     recover();
@@ -97,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return () => {
       disposed = true;
+      forceSignedOut = null;
       clearTimeout(retry);
       window.removeEventListener('online', onOnline);
       data.subscription.unsubscribe();
@@ -112,7 +122,21 @@ export function useAuth() {
 
 export async function signOut() {
   clearOfflineData();
-  const { error } = await supabase.auth.signOut();
   // Sin red la salida global falla y deja la sesión guardada: se cierra al menos en este dispositivo.
-  if (error) await supabase.auth.signOut({ scope: 'local' });
+  if (!(await trySignOut('global'))) await trySignOut('local');
+  // Con el token vencido y sin red, la salida local también falla (auth-js intenta renovarlo antes) y deja la
+  // sesión guardada sin emitir SIGNED_OUT: se borra a mano y se va al login. El token no sale del dispositivo.
+  if (localStorage.getItem(SESSION_KEY) !== null) {
+    forgetStoredSession(localStorage, SESSION_KEY);
+    forceSignedOut?.();
+  }
+}
+
+async function trySignOut(scope: 'global' | 'local'): Promise<boolean> {
+  try {
+    const { error } = await supabase.auth.signOut({ scope });
+    return !error;
+  } catch {
+    return false;
+  }
 }

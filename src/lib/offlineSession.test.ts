@@ -4,6 +4,7 @@ import {
   authStorageKey,
   decideStart,
   decideWithoutSession,
+  forgetStoredSession,
   isNetworkError,
   offlineDataKeys,
   readStoredUser,
@@ -102,4 +103,41 @@ Deno.test('decideWithoutSession: sin sesión guardada siempre es el login', () =
 Deno.test('offlineDataKeys: el perfil y las tareas guardadas, nada más', () => {
   const keys = ['profile', 'tasks:u-1', 'tasks:u-1:at', 'sb-abcd-auth-token', 'chat:u-1', 'profiles', 'mytasks:x'];
   assertEquals(offlineDataKeys(keys), ['profile', 'tasks:u-1', 'tasks:u-1:at']);
+});
+
+/** Almacenamiento con la interfaz de localStorage (length, key, removeItem). */
+function memoryStorage(entries: Record<string, string>) {
+  const map = new Map(Object.entries(entries));
+  return {
+    map,
+    get length() {
+      return map.size;
+    },
+    key: (index: number) => [...map.keys()][index] ?? null,
+    removeItem: (key: string) => void map.delete(key),
+  };
+}
+
+Deno.test('forgetStoredSession borra la sesión guardada y los datos sin conexión, y deja lo demás', () => {
+  const storage = memoryStorage({
+    [KEY]: storedSession(seconds(NOW) - 60),
+    profile: '{}',
+    'tasks:u-1': '[]',
+    'tasks:u-1:at': '1',
+    'sb-otro-auth-token': '{}',
+    'chat:u-1': '[]',
+    profiles: 'x',
+  });
+  forgetStoredSession(storage, KEY);
+  assertEquals([...storage.map.keys()].sort(), ['chat:u-1', 'profiles', 'sb-otro-auth-token']);
+  assertEquals(readStoredUser({ getItem: (key) => storage.map.get(key) ?? null }, KEY, NOW), null);
+});
+
+Deno.test('forgetStoredSession no falla si las claves no existen', () => {
+  const empty = memoryStorage({});
+  forgetStoredSession(empty, KEY);
+  assertEquals(empty.map.size, 0);
+  const other = memoryStorage({ 'chat:u-1': '[]' });
+  forgetStoredSession(other, KEY);
+  assertEquals([...other.map.keys()], ['chat:u-1']);
 });

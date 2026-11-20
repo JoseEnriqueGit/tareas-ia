@@ -52,3 +52,19 @@ export function decideWithoutSession(input: { online: boolean; stored: StoredUse
 export function offlineDataKeys(keys: string[]): string[] {
   return keys.filter((key) => key === 'profile' || key.startsWith('tasks:'));
 }
+
+/** Lo que se usa de localStorage para recorrer y borrar claves. */
+export type KeyedStorage = { readonly length: number; key(index: number): string | null; removeItem(key: string): void };
+
+/**
+ * Olvida la sesión en este dispositivo sin pasar por auth-js: borra el token guardado y los datos sin conexión.
+ * Sin red y con el token vencido, signOut({ scope: 'local' }) intenta renovarlo, falla y deja la sesión guardada.
+ */
+export function forgetStoredSession(storage: KeyedStorage, key: string): void {
+  const keys: string[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const name = storage.key(i);
+    if (name !== null) keys.push(name);
+  }
+  [key, ...offlineDataKeys(keys)].forEach((name) => storage.removeItem(name));
+}
