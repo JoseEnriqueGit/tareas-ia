@@ -41,6 +41,8 @@ function quickDates(today: string): [string, string][] {
 export default function TaskFormPage() {
   const { id } = useParams();
   const isNew = !id;
+  // Editar vuelve al detalle de la tarea; crear vuelve a la lista.
+  const backTo = isNew ? '/' : `/tareas/${id}`;
   const navigate = useNavigate();
   const { profile } = useAuth();
   const isSupervisor = profile?.role === 'supervisor';
@@ -124,7 +126,7 @@ export default function TaskFormPage() {
       : await supabase.from('tasks').update(values).eq('id', id);
     setBusy(false);
     if (error) return setSaveError(errorMessage(error));
-    navigate('/');
+    navigate(backTo, { replace: !isNew });
   }
 
   async function remove() {
@@ -141,7 +143,7 @@ export default function TaskFormPage() {
   const heading = isNew ? 'Nueva tarea' : 'Editar tarea';
   const topbar = (
     <header className="topbar">
-      <button type="button" className="icon-btn" aria-label="Volver" onClick={() => navigate('/')}>
+      <button type="button" className="icon-btn" aria-label="Volver" onClick={() => navigate(backTo)}>
         <BackIcon />
       </button>
       <h1>{heading}</h1>
@@ -299,7 +301,7 @@ export default function TaskFormPage() {
           )}
 
           <div className="form-bar">
-            <Link to="/" className="btn secondary">Cancelar</Link>
+            <Link to={backTo} className="btn secondary">Cancelar</Link>
             <button className="btn" disabled={busy}>{busy ? 'Guardando…' : 'Guardar tarea'}</button>
           </div>
         </form>

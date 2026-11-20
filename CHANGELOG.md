@@ -6,6 +6,15 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-19
+
+### Añadido
+- Vista de detalle de cada tarea: título, descripción completa, fecha en palabras, prioridad, estado, responsable, quién la creó y cuándo se creó y completó. Cambio de estado de un toque y botones Editar y Eliminar (con confirmación).
+- El detalle funciona sin conexión con la copia guardada en el dispositivo.
+
+### Cambiado
+- Tocar una tarea (en la lista o en los enlaces del asistente) abre su detalle; la edición pasa a /tareas/:id/editar y al guardar vuelve al detalle.
+
 ## [1.0.1] - 2026-11-19
 
 ### Corregido
@@ -32,5 +41,6 @@ Primera versión publicada en https://tareas-ia.vercel.app.
 - 15 pruebas automáticas de fechas y de validación de herramientas (RF-30).
 
 [Unreleased]: https://tareas-ia.vercel.app
+[1.1.0]: https://tareas-ia.vercel.app
 [1.0.1]: https://tareas-ia.vercel.app
 [1.0.0]: https://tareas-ia.vercel.app

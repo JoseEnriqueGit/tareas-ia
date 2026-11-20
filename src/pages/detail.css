@@ -1,0 +1,29 @@
+/* Detalle de una tarea */
+.detail { display: flex; flex-direction: column; gap: 12px; }
+.detail-title { font-size: 1.4rem; line-height: 1.25; overflow-wrap: anywhere; }
+.detail-title.done { color: var(--muted); text-decoration: line-through; }
+
+.detail-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.detail-status, .detail-prio { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px;
+  font-size: .85rem; font-weight: 600; border: 1px solid var(--border); background: var(--surface); }
+.detail-status.status-in_progress { background: var(--progress-bg); color: var(--progress-text); border-color: var(--progress-bg); }
+.detail-status.status-done { background: var(--done-bg); color: var(--done-text); border-color: var(--done-bg); }
+.detail-prio.prio-high { color: var(--danger); }
+
+.detail-card { margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.detail-desc { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+
+.detail-list { display: flex; flex-direction: column; gap: 0; padding: 0 14px; }
+.detail-list > div { display: flex; flex-direction: column; gap: 2px; padding: 12px 0; }
+.detail-list > div + div { border-top: 1px solid var(--border); }
+.detail-list dt { font-size: .8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.detail-list dd { margin: 0; font-size: 1rem; }
+.detail-list dd.late { color: var(--danger); font-weight: 600; }
+.detail-person { display: flex; align-items: center; gap: 8px; }
+
+.detail-status-btn { margin-top: 4px; }
+.detail-offline { font-size: .85rem; text-align: center; }
+.detail .form-bar .btn { flex: 1; }
+.detail .form-bar .btn.danger-outline { flex: 0 0 120px; }
+.btn.disabled-link { background: var(--disabled-bg); color: var(--muted); pointer-events: none; }
+.detail-sheet-actions { margin-top: 16px; }

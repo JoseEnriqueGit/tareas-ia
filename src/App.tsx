@@ -3,6 +3,7 @@ import { useAuth } from './auth';
 import LoginPage from './pages/LoginPage';
 import TasksPage from './pages/TasksPage';
 import TaskFormPage from './pages/TaskFormPage';
+import TaskDetailPage from './pages/TaskDetailPage';
 import ChatPage from './pages/ChatPage';
 import { useOnline } from './lib/useOnline';
 import { tasksSavedAtKey, timeOf } from './lib/format';
@@ -33,7 +34,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<TasksPage />} />
         <Route path="/tareas/nueva" element={<TaskFormPage />} />
-        <Route path="/tareas/:id" element={<TaskFormPage />} />
+        <Route path="/tareas/:id" element={<TaskDetailPage />} />
+        <Route path="/tareas/:id/editar" element={<TaskFormPage />} />
         <Route path="/asistente" element={<ChatPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
