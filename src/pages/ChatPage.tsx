@@ -43,7 +43,7 @@ export default function ChatPage() {
   const [text, setText] = useState('');
   // Mensaje del usuario mostrado al instante mientras responde el asistente.
   const [pending, setPending] = useState<Message | null>(null);
-  const [error, setError] = useState<{ message: string; retryable: boolean } | null>(null);
+  const [error, setError] = useState<{ message: string; retryable: boolean; nothingCreated?: boolean } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [listening, setListening] = useState(false);
   const [dockHeight, setDockHeight] = useState(160);
@@ -128,10 +128,11 @@ export default function ChatPage() {
     const { data, error } = await supabase.functions.invoke('agent', { body: { message, clientId } });
     if (error) {
       // RF-18: el texto escrito se conserva para reintentar.
-      let detail = { message: errorMessage(error), retryable: true };
+      let detail: { message: string; retryable: boolean; nothingCreated?: boolean } = { message: errorMessage(error), retryable: true };
       if (error instanceof FunctionsHttpError) {
         const body = await error.context.json().catch(() => null);
-        if (body?.error) detail = { message: body.error, retryable: body.retryable !== false };
+        // "No se creó ninguna tarea" solo cuando el servidor lo confirma (falló antes de cualquier acción).
+          if (body?.error) detail = { message: body.error, retryable: body.retryable !== false, nothingCreated: body.nothingCreated === true };
       }
       // S15.1: si el backend no pudo confirmar el mensaje anterior, el próximo envío es un mensaje nuevo.
       // En errores reintentables (incluido "todavía se está procesando") se conserva el clientId.
@@ -265,7 +266,7 @@ export default function ChatPage() {
           <div className="error-box" role="alert">
             <p>
               <strong>{error.message}</strong>
-              {error.retryable && ' No se creó ninguna tarea. Inténtalo de nuevo.'}
+              {error.nothingCreated && ' No se creó ninguna tarea. Inténtalo de nuevo.'}
             </p>
             <div className="actions">
               {error.retryable && <button className="btn" onClick={() => send()}>Reintentar</button>}

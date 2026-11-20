@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       if (!(error instanceof AiError)) console.error(error);
       // Si ya se ejecutaron acciones, no se devuelve error: reintentar duplicaría tareas.
       if (!hasActions()) {
-        return { kind: 'failed', status: aiError.status, body: { error: aiError.message, retryable: aiError.status !== 500 } };
+        return { kind: 'failed', status: aiError.status, body: { error: aiError.message, retryable: aiError.status !== 500, nothingCreated: true } };
       }
       warning = `La IA falló antes de terminar (${aiError.message}). Esto es lo que alcancé a hacer:`;
     }

@@ -124,8 +124,8 @@ export async function signOut() {
   clearOfflineData();
   // Sin red la salida global falla y deja la sesión guardada: se cierra al menos en este dispositivo.
   if (!(await trySignOut('global'))) await trySignOut('local');
-  // Con el token vencido y sin red, la salida local también falla (auth-js intenta renovarlo antes) y deja la
-  // sesión guardada sin emitir SIGNED_OUT: se borra a mano y se va al login. El token no sale del dispositivo.
+  // Respaldo: auth-js 2.119 ya borra la sesión en la salida local con error de red, pero si en otra versión o
+  // caso la sesión sigue guardada, se borra a mano y se va al login. El token no sale del dispositivo.
   if (localStorage.getItem(SESSION_KEY) !== null) {
     forgetStoredSession(localStorage, SESSION_KEY);
     forceSignedOut?.();
