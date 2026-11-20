@@ -3,7 +3,7 @@
 // que RLS decide qué puede ver y tocar.
 import { z } from 'npm:zod@4';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { isValidIsoDate } from '../_shared/dates.ts';
+import { dayLabel, isValidIsoDate, todayIn, whenLabel } from '../_shared/dates.ts';
 
 const isoDate = z.string().refine(isValidIsoDate, 'Fecha inválida: usa el formato YYYY-MM-DD');
 const priority = z.enum(['baja', 'media', 'alta']);
@@ -77,7 +77,7 @@ export const toolDefinitions = [
           desde: { type: 'string', description: 'Fecha límite mínima, YYYY-MM-DD.' },
           hasta: { type: 'string', description: 'Fecha límite máxima, YYYY-MM-DD.' },
           texto: { type: 'string', description: 'Busca en título y descripción, p. ej. "Juan".' },
-          responsable_id: { type: 'string', description: 'Solo supervisores: filtra por responsable.' },
+          responsable_id: { type: 'string', description: 'Solo supervisores: filtra por responsable (su propio id para "mis tareas").' },
         },
       },
     },
@@ -144,7 +144,12 @@ export function emptyActions(): Actions {
   return { created: [], updated: [], completed: [], pendingDelete: null, listed: [] };
 }
 
-type Context = { db: SupabaseClient; userId: string; isSupervisor: boolean; actions: Actions };
+/** `now` es la hora de la petición: de ella salen "hoy", `vencida` y las fechas en palabras. */
+type Context = { db: SupabaseClient; userId: string; isSupervisor: boolean; actions: Actions; now?: Date };
+
+const SCOPE_USER = 'solo tus tareas (creadas por ti o asignadas a ti); no puedes ver las de otras personas';
+const SCOPE_SUPERVISOR = 'todo el equipo';
+const LIST_LIMIT = 50;
 
 /** Valida los argumentos crudos del modelo. Devuelve los datos o un mensaje para el modelo. */
 export function parseArgs<N extends ToolName>(
@@ -176,7 +181,8 @@ export async function runTool(name: string, rawArgs: string, ctx: Context): Prom
   }
 }
 
-const COLUMNS = 'id, title, description, due_date, priority, status, assignee:profiles!tasks_assignee_id_fkey(id, full_name)';
+const COLUMNS =
+  'id, title, description, due_date, priority, status, created_at, completed_at, assignee:profiles!tasks_assignee_id_fkey(id, full_name)';
 
 type Row = {
   id: string;
@@ -185,18 +191,26 @@ type Row = {
   due_date: string | null;
   priority: keyof typeof PRIORITY_ES;
   status: keyof typeof STATUS_ES;
+  created_at?: string | null;
+  completed_at?: string | null;
   assignee: { id: string; full_name: string } | null;
 };
 
-function toModel(row: Row) {
+/** Tarea como la ve el modelo. `vencida`, `cuando` y las horas se calculan aquí: el modelo no hace cuentas de fechas. */
+function toModel(row: Row, now: Date) {
+  const today = todayIn(now);
   return {
     id: row.id,
     titulo: row.title,
     descripcion: row.description,
     fecha_limite: row.due_date,
+    cuando: row.due_date ? dayLabel(row.due_date, today) : 'sin fecha',
+    vencida: row.status !== 'done' && !!row.due_date && row.due_date < today,
     prioridad: PRIORITY_ES[row.priority],
     estado: STATUS_ES[row.status],
     responsable: row.assignee?.full_name ?? null,
+    creada_el: whenLabel(row.created_at, now),
+    completada_el: whenLabel(row.completed_at, now),
   };
 }
 
@@ -207,9 +221,15 @@ function ref(row: Row): TaskRef {
 // deno-lint-ignore no-explicit-any
 async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown> {
   const { db, actions } = ctx;
+  const now = ctx.now ?? new Date();
+  const model = (data: unknown) => toModel(data as Row, now);
 
   if ('responsable_id' in args && args.responsable_id && !ctx.isSupervisor && args.responsable_id !== ctx.userId) {
-    return { error: 'Solo un supervisor puede asignar tareas a otra persona.' };
+    return {
+      error: name === 'listar_tareas'
+        ? 'Solo un supervisor puede ver las tareas de otras personas.'
+        : 'Solo un supervisor puede asignar tareas a otra persona.',
+    };
   }
 
   switch (name) {
@@ -228,11 +248,17 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
         .single();
       if (error) return { error: error.message };
       actions.created.push(ref(data as unknown as Row));
-      return { creada: toModel(data as unknown as Row) };
+      return { creada: model(data) };
     }
 
     case 'listar_tareas': {
-      let query = db.from('tasks').select(COLUMNS).order('due_date', { nullsFirst: false }).order('created_at').limit(50);
+      // count 'exact' da el total real con los mismos filtros, aunque solo se devuelvan LIST_LIMIT filas.
+      let query = db
+        .from('tasks')
+        .select(COLUMNS, { count: 'exact' })
+        .order('due_date', { nullsFirst: false })
+        .order('created_at')
+        .limit(LIST_LIMIT);
       const estado = args.estado ?? 'abiertas';
       if (estado === 'abiertas') query = query.neq('status', 'done');
       else if (estado !== 'todas') query = query.eq('status', STATUS_DB[estado as keyof typeof STATUS_DB]);
@@ -244,7 +270,7 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
         const text = args.texto.replace(/[,()%*\\.:]/g, ' ').trim();
         if (text) query = query.or(`title.ilike.%${text}%,description.ilike.%${text}%`);
       }
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) return { error: error.message };
       const rows = data as unknown as Row[];
       for (const row of rows) {
@@ -257,7 +283,12 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
           assignee: row.assignee?.full_name ?? null,
         });
       }
-      return { total: rows.length, tareas: rows.map(toModel) };
+      return {
+        alcance: ctx.isSupervisor ? SCOPE_SUPERVISOR : SCOPE_USER,
+        total: count ?? rows.length,
+        mostradas: rows.length,
+        tareas: rows.map(model),
+      };
     }
 
     case 'actualizar_tarea': {
@@ -273,7 +304,7 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       if (error) return { error: error.message };
       if (!data) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };
       actions.updated.push(ref(data as unknown as Row));
-      return { actualizada: toModel(data as unknown as Row) };
+      return { actualizada: model(data) };
     }
 
     case 'completar_tarea': {
@@ -281,16 +312,20 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       if (error) return { error: error.message };
       if (!data) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };
       actions.completed.push(ref(data as unknown as Row));
-      return { completada: toModel(data as unknown as Row) };
+      return { completada: model(data) };
     }
 
     case 'eliminar_tarea': {
       // RF-17: nunca se borra desde el modelo. Se deja pendiente y el usuario confirma en la app.
+      // La app confirma una sola eliminación por mensaje: otra tarea distinta se rechaza sin consultar.
+      if (actions.pendingDelete && actions.pendingDelete.id !== args.id) {
+        return { error: 'Solo se puede eliminar una tarea por mensaje. Pide confirmar la primera y luego la siguiente.' };
+      }
       const { data, error } = await db.from('tasks').select(COLUMNS).eq('id', args.id).maybeSingle();
       if (error) return { error: error.message };
       if (!data) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };
       actions.pendingDelete = ref(data as unknown as Row);
-      return { pendiente_de_confirmacion: toModel(data as unknown as Row), nota: 'La app mostrará un botón para confirmar. No digas que ya se eliminó.' };
+      return { pendiente_de_confirmacion: model(data), nota: 'La app mostrará un botón para confirmar. No digas que ya se eliminó.' };
     }
   }
 }

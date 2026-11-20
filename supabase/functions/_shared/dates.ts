@@ -41,22 +41,25 @@ export function weekdayName(isoDate: string): string {
 
 /**
  * Contexto de fechas para el prompt del agente. Los modelos pequeños se equivocan
- * sumando días, así que se les da la tabla ya resuelta: los 7 días siguientes a hoy
+ * sumando días, así que se les da la tabla ya resuelta para 14 días: los 7 primeros
  * contienen cada día de la semana exactamente una vez, y "el viernes" es siempre el
  * próximo viernes (si hoy es viernes, el de la semana que viene).
  */
 export function dateContext(now: Date, timeZone = TIME_ZONE): string {
   const today = todayIn(now, timeZone);
+  const weekEnd = endOfWeek(today);
   const lines = [
     `Ahora: ${weekdayName(today)} ${today}, ${timeIn(now, timeZone)} (${timeZone}).`,
     `Hoy: ${today}. Mañana: ${addDays(today, 1)}. Pasado mañana: ${addDays(today, 2)}.`,
     'Próximos días (usa esta tabla para "el lunes", "el viernes", etc.):',
   ];
-  for (let i = 1; i <= 7; i++) {
+  for (let i = 1; i <= 14; i++) {
+    if (i === 8) lines.push('Días 8 a 14 ("el viernes" a secas es siempre el de la lista anterior):');
     const day = addDays(today, i);
     lines.push(`- ${weekdayName(day)}: ${day}`);
   }
-  lines.push(`"Esta semana" va de ${today} a ${endOfWeek(today)} (domingo).`);
+  lines.push(`"Esta semana" va de ${today} a ${weekEnd} (domingo).`);
+  lines.push(`"La próxima semana" va de ${addDays(weekEnd, 1)} a ${addDays(weekEnd, 7)} (lunes a domingo).`);
   return lines.join('\n');
 }
 
@@ -101,6 +104,25 @@ export function dayLabel(isoDate: string, today: string): string {
   }
   if (diff < 0 && diff > -7) return `Hace ${-diff} días`;
   return `${day} ${MONTHS[Number(isoDate.slice(5, 7)) - 1]}`;
+}
+
+/**
+ * Momento (timestamp) en palabras con la hora de la zona dada: "hoy, 10:45", "ayer, 18:02",
+ * "lunes 23, 09:00" o "5 nov, 09:00". Null si no hay momento.
+ */
+export function whenLabel(instant: string | Date | null | undefined, now: Date, timeZone = TIME_ZONE): string | null {
+  if (!instant) return null;
+  const date = new Date(instant);
+  if (Number.isNaN(date.getTime())) return null;
+  const day = todayIn(date, timeZone);
+  const diff = daysBetween(todayIn(now, timeZone), day);
+  let label: string;
+  if (diff === 0) label = 'hoy';
+  else if (diff === -1) label = 'ayer';
+  else if (diff === 1) label = 'mañana';
+  else if (Math.abs(diff) < 7) label = `${weekdayName(day)} ${Number(day.slice(8, 10))}`;
+  else label = `${Number(day.slice(8, 10))} ${MONTHS[Number(day.slice(5, 7)) - 1]}`;
+  return `${label}, ${timeIn(date, timeZone)}`;
 }
 
 export const UPCOMING_GROUPS = ['Mañana', 'Esta semana', 'Próxima semana', 'Más adelante', 'Sin fecha'] as const;

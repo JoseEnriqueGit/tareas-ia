@@ -1,5 +1,5 @@
 import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
-import { addDays, dateContext, dayLabel, endOfWeek, isValidIsoDate, taskView, todayIn, UPCOMING_GROUPS, upcomingGroup } from './dates.ts';
+import { addDays, dateContext, dayLabel, endOfWeek, isValidIsoDate, taskView, todayIn, UPCOMING_GROUPS, upcomingGroup, whenLabel } from './dates.ts';
 
 Deno.test('todayIn usa America/Santo_Domingo y no UTC cerca de medianoche', () => {
   // 03:30 UTC del 20 = 23:30 del 19 en Santo Domingo (UTC-4).
@@ -69,4 +69,27 @@ Deno.test('upcomingGroup agrupa Próximas por cercanía y deja "Sin fecha" al fi
   assertEquals(upcomingGroup('2026-11-30', today), 'Más adelante');
   assertEquals(upcomingGroup(null, today), 'Sin fecha');
   assertEquals(UPCOMING_GROUPS.at(-1), 'Sin fecha');
+});
+
+Deno.test('dateContext cubre 14 días y dice cuándo es la próxima semana', () => {
+  // Jueves 19 de noviembre de 2026, 23:30 en Santo Domingo.
+  const context = dateContext(new Date('2026-11-20T03:30:00Z'));
+  const rows = context.split('\n').filter((line) => /^- [a-záé]+: \d{4}-\d{2}-\d{2}$/.test(line));
+  assertEquals(rows.length, 14);
+  assertEquals(rows[0], '- viernes: 2026-11-20');
+  assertEquals(rows[13], '- jueves: 2026-12-03');
+  // "el viernes" a secas sigue siendo el primero; el segundo viernes está en la segunda parte de la tabla.
+  assertEquals(rows.indexOf('- viernes: 2026-11-27'), 7);
+  assertStringIncludes(context, '"Esta semana" va de 2026-11-19 a 2026-11-22');
+  assertStringIncludes(context, '"La próxima semana" va de 2026-11-23 a 2026-11-29');
+});
+
+Deno.test('whenLabel da fecha y hora en Santo Domingo: hoy, ayer, día de la semana o fecha corta', () => {
+  const now = new Date('2026-11-20T03:30:00Z'); // jueves 19, 23:30 locales
+  assertEquals(whenLabel('2026-11-20T03:10:00Z', now), 'hoy, 23:10');
+  assertEquals(whenLabel('2026-11-19T22:02:00Z', now), 'hoy, 18:02');
+  assertEquals(whenLabel('2026-11-19T03:45:00Z', now), 'ayer, 23:45');
+  assertEquals(whenLabel('2026-11-16T13:00:00Z', now), 'lunes 16, 09:00');
+  assertEquals(whenLabel('2026-11-01T14:00:00Z', now), '1 nov, 10:00');
+  assertEquals(whenLabel(null, now), null);
 });

@@ -54,19 +54,37 @@ Deno.test('runTool no toca la base si los parámetros son inválidos o la herram
   assertEquals(ctx.actions, emptyActions());
 });
 
-/** Base falsa: cada consulta encadenable devuelve, al resolverse, el siguiente lote de filas. */
-function fakeDb(batches: unknown[][]) {
+/**
+ * Base falsa: cada consulta encadenable devuelve, al resolverse, el siguiente lote de filas.
+ * `calls` registra cada método llamado con sus argumentos; `counts` es el `count` de cada lote.
+ */
+function fakeDb(batches: unknown[][], counts: (number | null)[] = []) {
+  const calls: [string, ...unknown[]][] = [];
   return {
-    from() {
+    calls,
+    from(table: string) {
+      calls.push(['from', table]);
       const rows = batches.shift() ?? [];
+      const count = counts.shift() ?? null;
+      let single = false;
       const query: Record<string, unknown> = {
-        then: (resolve: (value: unknown) => void) => resolve({ data: rows, error: null }),
+        then: (resolve: (value: unknown) => void) =>
+          resolve({ data: single ? (rows[0] ?? null) : rows, error: null, count }),
       };
-      for (const method of ['select', 'order', 'limit', 'neq', 'eq', 'gte', 'lte', 'or']) query[method] = () => query;
+      for (const method of ['select', 'order', 'limit', 'neq', 'eq', 'gte', 'lte', 'or', 'maybeSingle', 'single']) {
+        query[method] = (...args: unknown[]) => {
+          calls.push([method, ...args]);
+          if (method === 'maybeSingle' || method === 'single') single = true;
+          return query;
+        };
+      }
       return query;
     },
   };
 }
+
+/** Base que falla si se usa: prueba que la herramienta respondió sin consultar. */
+const noDb = () => new Proxy({}, { get: () => { throw new Error('no debería usarse la base'); } });
 
 const row = (id: string, title: string, extra: Record<string, unknown> = {}) => ({
   id, title, description: null, due_date: '2026-11-20', priority: 'high', status: 'pending',
@@ -113,4 +131,81 @@ Deno.test('un usuario normal no puede asignar tareas a otra persona', async () =
   );
   assertEquals(result.error, 'Solo un supervisor puede asignar tareas a otra persona.');
   assertEquals(ctx.actions.created, []);
+});
+
+const OTHER = '44444444-4444-4444-8444-444444444444';
+// 03:30 UTC del 20 = jueves 19, 23:30 en Santo Domingo: en UTC ya sería el 20.
+const NEAR_MIDNIGHT = new Date('2026-11-20T03:30:00Z');
+
+Deno.test('listar_tareas dice el alcance: solo las propias para un usuario, todo el equipo para un supervisor', async () => {
+  const user = JSON.parse(await runTool('listar_tareas', '{}', {
+    db: fakeDb([[]]) as never, userId: ID, isSupervisor: false, actions: emptyActions(), now: NEAR_MIDNIGHT,
+  }));
+  assertEquals(user.alcance, 'solo tus tareas (creadas por ti o asignadas a ti); no puedes ver las de otras personas');
+
+  const supervisor = JSON.parse(await runTool('listar_tareas', '{}', {
+    db: fakeDb([[]]) as never, userId: ID, isSupervisor: true, actions: emptyActions(), now: NEAR_MIDNIGHT,
+  }));
+  assertEquals(supervisor.alcance, 'todo el equipo');
+});
+
+Deno.test('listar_tareas devuelve el total real (count exact) y cuántas se muestran', async () => {
+  const rows = Array.from({ length: 3 }, (_, i) => row(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, `Tarea ${i}`));
+  const db = fakeDb([rows], [57]);
+  const result = JSON.parse(await runTool('listar_tareas', '{}', {
+    db: db as never, userId: ID, isSupervisor: true, actions: emptyActions(), now: NEAR_MIDNIGHT,
+  }));
+  assertEquals([result.total, result.mostradas, result.tareas.length], [57, 3, 3]);
+  const select = db.calls.find(([method]) => method === 'select')!;
+  assertEquals(select[2], { count: 'exact' });
+  assertStringIncludes(select[1] as string, 'created_at');
+  assertStringIncludes(select[1] as string, 'completed_at');
+  assert(db.calls.some(([method, n]) => method === 'limit' && n === 50));
+});
+
+Deno.test('listar_tareas calcula vencida, cuando, creada_el y completada_el con la hora de Santo Domingo', async () => {
+  const D = '55555555-5555-4555-8555-555555555555';
+  const db = fakeDb([[
+    // Vence "hoy" en Santo Domingo (en UTC ya sería ayer): no está vencida.
+    row(ID, 'Hoy', { due_date: '2026-11-19', created_at: '2026-11-20T03:10:00Z', completed_at: null }),
+    row(OTHER, 'Vencida', { due_date: '2026-11-18', created_at: '2026-11-19T03:45:00Z', completed_at: null }),
+    row(D, 'Hecha', { due_date: '2026-11-18', status: 'done', created_at: '2026-11-16T13:00:00Z', completed_at: '2026-11-19T22:02:00Z' }),
+    row('66666666-6666-4666-8666-666666666666', 'Sin fecha', { due_date: null, created_at: '2026-11-01T14:00:00Z', completed_at: null }),
+    row('77777777-7777-4777-8777-777777777777', 'Mañana', { due_date: '2026-11-20' }),
+  ]]);
+  const result = JSON.parse(await runTool('listar_tareas', '{"estado":"todas"}', {
+    db: db as never, userId: ID, isSupervisor: false, actions: emptyActions(), now: NEAR_MIDNIGHT,
+  }));
+  const pick = (t: Record<string, unknown>) => [t.titulo, t.vencida, t.cuando, t.creada_el, t.completada_el];
+  assertEquals(result.tareas.map(pick), [
+    ['Hoy', false, 'Hoy', 'hoy, 23:10', null],
+    ['Vencida', true, 'Ayer', 'ayer, 23:45', null],
+    ['Hecha', false, 'Ayer', 'lunes 16, 09:00', 'hoy, 18:02'],
+    ['Sin fecha', false, 'sin fecha', '1 nov, 10:00', null],
+    ['Mañana', false, 'Mañana', null, null],
+  ]);
+});
+
+Deno.test('una segunda eliminar_tarea en el mismo mensaje devuelve error y no consulta la base', async () => {
+  const actions = emptyActions();
+  const first = JSON.parse(await runTool('eliminar_tarea', `{"id":"${ID}"}`, {
+    db: fakeDb([[row(ID, 'Cobrar a Juan')]]) as never, userId: ID, isSupervisor: false, actions, now: NEAR_MIDNIGHT,
+  }));
+  assertEquals(first.pendiente_de_confirmacion.titulo, 'Cobrar a Juan');
+  assertEquals(actions.pendingDelete, { id: ID, title: 'Cobrar a Juan', due_date: '2026-11-20' });
+
+  const second = JSON.parse(await runTool('eliminar_tarea', `{"id":"${OTHER}"}`, {
+    db: noDb() as never, userId: ID, isSupervisor: false, actions, now: NEAR_MIDNIGHT,
+  }));
+  assertEquals(second, { error: 'Solo se puede eliminar una tarea por mensaje. Pide confirmar la primera y luego la siguiente.' });
+  assertEquals(actions.pendingDelete, { id: ID, title: 'Cobrar a Juan', due_date: '2026-11-20' });
+});
+
+Deno.test('responsable_id ajeno: listar_tareas habla de ver y crear_tarea de asignar, sin tocar la base', async () => {
+  const ctx = { db: noDb() as never, userId: ID, isSupervisor: false, actions: emptyActions(), now: NEAR_MIDNIGHT };
+  const list = JSON.parse(await runTool('listar_tareas', `{"responsable_id":"${OTHER}"}`, ctx));
+  assertEquals(list, { error: 'Solo un supervisor puede ver las tareas de otras personas.' });
+  const create = JSON.parse(await runTool('crear_tarea', `{"titulo":"x","responsable_id":"${OTHER}"}`, ctx));
+  assertEquals(create, { error: 'Solo un supervisor puede asignar tareas a otra persona.' });
+  assertEquals(ctx.actions, emptyActions());
 });

@@ -6,6 +6,18 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-20
+
+### Corregido
+- El asistente ya no afirma nada sobre las tareas de otras personas cuando el usuario no es supervisor: explica que solo un supervisor puede verlas.
+- Para un supervisor, "mis tareas" son las que tiene asignadas; "las del equipo" son todas, indicando el responsable.
+- Las respuestas como "la segunda" o "esa" después de una tarjeta se refieren a las tareas mostradas en ella.
+- Los totales son reales aunque solo se muestre una parte, y el asistente nunca dice que algo se hizo si falló.
+- El asistente recibe si una tarea está vencida, su fecha en palabras y cuándo se creó y completó, en vez de calcularlo.
+- Fechas hasta dentro de 14 días y "la próxima semana" se resuelven sin que el modelo calcule.
+- Una sola eliminación pendiente por mensaje; si se da una hora, va a la descripción y se aclara que solo se guarda la fecha.
+- El error al pedir tareas de otra persona dice "ver" en vez de "asignar".
+
 ## [1.2.1] - 2026-11-19
 
 ### Corregido
@@ -56,6 +68,7 @@ Primera versión publicada en https://tareas-ia.vercel.app.
 - 15 pruebas automáticas de fechas y de validación de herramientas (RF-30).
 
 [Unreleased]: https://tareas-ia.vercel.app
+[1.2.2]: https://tareas-ia.vercel.app
 [1.2.1]: https://tareas-ia.vercel.app
 [1.2.0]: https://tareas-ia.vercel.app
 [1.1.0]: https://tareas-ia.vercel.app
