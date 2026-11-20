@@ -133,6 +133,9 @@ export default function ChatPage() {
         const body = await error.context.json().catch(() => null);
         if (body?.error) detail = { message: body.error, retryable: body.retryable !== false };
       }
+      // S15.1: si el backend no pudo confirmar el mensaje anterior, el próximo envío es un mensaje nuevo.
+      // En errores reintentables (incluido "todavía se está procesando") se conserva el clientId.
+      if (!detail.retryable) attemptRef.current = null;
       setPending(null);
       setError(detail);
       return;

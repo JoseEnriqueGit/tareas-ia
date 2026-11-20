@@ -3,7 +3,8 @@
 // Usa SIEMPRE el JWT del usuario (nunca service_role), así que RLS aplica a todo.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AiError, chatCompletion, type ChatMessage } from './ai.ts';
-import { emptyActions, parseClientId, runTool, savedReply, toolDefinitions, type Actions } from './tools.ts';
+import { emptyActions, parseClientId, runTool, toolDefinitions, type Actions } from './tools.ts';
+import { handleWithReservation, type RunResult } from './reservation.ts';
 import { historyForModel, stripInternalNotes, systemPrompt, type StoredMessage } from './history.ts';
 
 const MAX_ITERATIONS = 5;
@@ -57,14 +58,8 @@ Deno.serve(async (req) => {
   if (!parsedClientId.ok) return json({ error: 'Identificador de mensaje inválido.', retryable: false }, 400);
   const { clientId } = parsedClientId;
 
-  // S14.5: si este mensaje ya se procesó (el navegador perdió la respuesta y reintenta), se devuelve
-  // lo guardado sin volver a llamar al modelo ni a las herramientas, para no duplicar tareas.
-  if (clientId) {
-    const saved = await savedReply(db, clientId, userId);
-    if (saved) return json({ messages: saved, replayed: true });
-  }
-
   // Paso 3: armar la conversación que verá el modelo: instrucciones + historial + mensaje nuevo.
+  // El historial se lee antes de reservar el mensaje (S15.1), para que no aparezca dos veces.
   const [{ data: profile }, { data: history }] = await Promise.all([
     db.from('profiles').select('full_name, role').eq('id', userId).single(),
     db.from('chat_messages').select('role, content, meta').order('created_at', { ascending: false }).limit(HISTORY_LIMIT),
@@ -80,49 +75,62 @@ Deno.serve(async (req) => {
     ...historyForModel(((history ?? []) as StoredMessage[]).reverse(), message),
   ];
 
-  const actions = emptyActions();
-  const hasActions = () =>
-    actions.created.length + actions.updated.length + actions.completed.length > 0 || actions.pendingDelete !== null;
-  let reply = '';
-  let warning = '';
-
   // Paso 4: bucle con el modelo. Si pide herramientas se ejecutan y se le devuelve el resultado;
-  // si responde texto, termina.
-  try {
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const answer = await chatCompletion(messages, toolDefinitions);
-      if (!answer.tool_calls?.length) {
-        // Si el modelo copió la nota interna, se quita antes de guardar o responder.
-        reply = stripInternalNotes(answer.content ?? '');
-        if (!reply && !hasActions()) throw new AiError('La IA devolvió una respuesta vacía.', 502);
-        break;
+  // si responde texto, termina. Devuelve la respuesta a guardar, o el error si falló antes de actuar.
+  async function runAgent(): Promise<RunResult> {
+    const actions = emptyActions();
+    const hasActions = () =>
+      actions.created.length + actions.updated.length + actions.completed.length > 0 || actions.pendingDelete !== null;
+    let reply = '';
+    let warning = '';
+
+    try {
+      for (let i = 0; i < MAX_ITERATIONS; i++) {
+        const answer = await chatCompletion(messages, toolDefinitions);
+        if (!answer.tool_calls?.length) {
+          // Si el modelo copió la nota interna, se quita antes de guardar o responder.
+          reply = stripInternalNotes(answer.content ?? '');
+          if (!reply && !hasActions()) throw new AiError('La IA devolvió una respuesta vacía.', 502);
+          break;
+        }
+        messages.push({ ...answer, role: 'assistant' });
+        for (const call of answer.tool_calls) {
+          const result = await runTool(call.function.name, call.function.arguments, { db, userId, isSupervisor, actions, now: requestTime });
+          messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+        }
+        if (i === MAX_ITERATIONS - 1) warning = 'No pude terminar todo lo que pediste; revisa el resultado.';
       }
-      messages.push({ ...answer, role: 'assistant' });
-      for (const call of answer.tool_calls) {
-        const result = await runTool(call.function.name, call.function.arguments, { db, userId, isSupervisor, actions, now: requestTime });
-        messages.push({ role: 'tool', tool_call_id: call.id, content: result });
+    } catch (error) {
+      const aiError = error instanceof AiError ? error : new AiError('Error inesperado del asistente.', 500);
+      if (!(error instanceof AiError)) console.error(error);
+      // Si ya se ejecutaron acciones, no se devuelve error: reintentar duplicaría tareas.
+      if (!hasActions()) {
+        return { kind: 'failed', status: aiError.status, body: { error: aiError.message, retryable: aiError.status !== 500 } };
       }
-      if (i === MAX_ITERATIONS - 1) warning = 'No pude terminar todo lo que pediste; revisa el resultado.';
+      warning = `La IA falló antes de terminar (${aiError.message}). Esto es lo que alcancé a hacer:`;
     }
-  } catch (error) {
-    const aiError = error instanceof AiError ? error : new AiError('Error inesperado del asistente.', 500);
-    if (!(error instanceof AiError)) console.error(error);
-    // Si ya se ejecutaron acciones, no se devuelve error: reintentar duplicaría tareas.
-    if (!hasActions()) return json({ error: aiError.message, retryable: aiError.status !== 500 }, aiError.status);
-    warning = `La IA falló antes de terminar (${aiError.message}). Esto es lo que alcancé a hacer:`;
+
+    const done = summary(actions);
+    return { kind: 'done', content: [warning, reply || done || 'Listo.'].filter(Boolean).join('\n'), meta: { ...actions, summary: done } };
   }
 
-  // Paso 5: guardar la conversación y responder al navegador.
-  const done = summary(actions);
-  const content = [warning, reply || done || 'Listo.'].filter(Boolean).join('\n');
-  const meta = { ...actions, summary: done };
+  // Paso 5 con clientId (S15.1): el mensaje se reserva antes de ejecutar y luego se guarda solo la
+  // respuesta. Un reintento con el mismo clientId repite lo guardado o recibe 409; nunca reejecuta.
+  if (clientId) {
+    const outcome = await handleWithReservation(db, { userId, clientId, message }, runAgent);
+    return json(outcome.body, outcome.status);
+  }
 
-  // Se guarda la conversación solo cuando hubo respuesta, para que reintentar no duplique mensajes (RF-20).
+  // Paso 5 sin clientId (clientes viejos): se guarda la conversación solo cuando hubo respuesta,
+  // para que reintentar no duplique mensajes (RF-20).
+  const result = await runAgent();
+  if (result.kind === 'failed') return json(result.body, result.status);
+
   // Horas distintas para que el orden usuario -> asistente sea estable.
   const now = Date.now();
   const rows = [
-    { user_id: userId, role: 'user', content: message, meta: clientId ? { clientId } : null, created_at: new Date(now).toISOString() },
-    { user_id: userId, role: 'assistant', content, meta, created_at: new Date(now + 1).toISOString() },
+    { user_id: userId, role: 'user', content: message, meta: null, created_at: new Date(now).toISOString() },
+    { user_id: userId, role: 'assistant', content: result.content, meta: result.meta, created_at: new Date(now + 1).toISOString() },
   ];
   const { data: saved, error: saveError } = await db
     .from('chat_messages')

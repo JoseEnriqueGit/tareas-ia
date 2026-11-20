@@ -370,35 +370,4 @@ export function parseClientId(value: unknown): { ok: true; clientId: string | nu
   const result = clientIdSchema.safeParse(value);
   return result.success ? { ok: true, clientId: result.data } : { ok: false };
 }
-
-export type SavedMessage = { id: string; role: 'user' | 'assistant'; content: string; meta: unknown; created_at: string };
-
-const MESSAGE_COLUMNS = 'id, role, content, meta, created_at';
-
-/**
- * Si este mensaje ya se procesó (un reintento tras perder la respuesta), devuelve lo guardado:
- * el mensaje del usuario con ese clientId y la respuesta siguiente. RLS limita la búsqueda al propio chat.
- */
-// RLS ya limita el chat al propio usuario; el filtro por user_id es una defensa extra (revisión R1).
-export async function savedReply(db: SupabaseClient, clientId: string, userId: string): Promise<SavedMessage[] | null> {
-  const { data: user, error } = await db
-    .from('chat_messages')
-    .select(MESSAGE_COLUMNS)
-    .eq('user_id', userId)
-    .eq('role', 'user')
-    .eq('meta->>clientId', clientId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error || !user) return null;
-  const { data: reply } = await db
-    .from('chat_messages')
-    .select(MESSAGE_COLUMNS)
-    .eq('user_id', userId)
-    .eq('role', 'assistant')
-    .gt('created_at', (user as SavedMessage).created_at)
-    .order('created_at')
-    .limit(1)
-    .maybeSingle();
-  return reply ? [user as SavedMessage, reply as SavedMessage] : null;
-}
+// La reserva y el reintento por clientId (S15.1) están en reservation.ts.
