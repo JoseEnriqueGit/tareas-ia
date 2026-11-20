@@ -132,3 +132,16 @@ Deno.test('el prompt manda filtrar "qué completé" con completada_desde/hasta y
   assertStringIncludes(prompt, '[Contexto de la app');
   assert(!prompt.includes('[Tareas mostradas'), 'el prompt ya no enseña la forma vieja de la nota');
 });
+
+Deno.test('historyForModel quita notas filtradas de respuestas ya guardadas (no le enseña al modelo a copiarlas)', () => {
+  const rows = [
+    { role: 'user' as const, content: '¿Qué tareas tiene Ana?', meta: null },
+    {
+      role: 'assistant' as const,
+      content: 'Ana tiene 1 tarea.\n[Tareas mostradas en la app, en orden: 1) Enviar cotización a Ana (id 40cb989d-ceab-42df-8695-c431f6dd4f85, 2026-11-20)]',
+      meta: null,
+    },
+  ];
+  const [, assistant] = historyForModel(rows, 'gracias');
+  assertEquals(assistant, { role: 'assistant', content: 'Ana tiene 1 tarea.' });
+});

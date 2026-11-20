@@ -6,6 +6,11 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-11-20
+
+### Corregido
+- Las respuestas antiguas que guardaron la nota interna se limpian también en el historial que recibe el asistente, para que no vuelva a copiarla.
+
 ## [1.2.3] - 2026-11-20
 
 ### Corregido
@@ -74,6 +79,7 @@ Primera versión publicada en https://tareas-ia.vercel.app.
 - 15 pruebas automáticas de fechas y de validación de herramientas (RF-30).
 
 [Unreleased]: https://tareas-ia.vercel.app
+[1.2.4]: https://tareas-ia.vercel.app
 [1.2.3]: https://tareas-ia.vercel.app
 [1.2.2]: https://tareas-ia.vercel.app
 [1.2.1]: https://tareas-ia.vercel.app

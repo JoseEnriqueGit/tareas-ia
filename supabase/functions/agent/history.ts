@@ -146,7 +146,8 @@ export function historyForModel(
       pushUser(content);
       continue;
     }
-    messages.push({ role, content });
+    // Respuestas viejas pudieron guardar una nota copiada: se quita para no enseñarle a repetirla.
+    messages.push({ role, content: stripInternalNotes(content) });
     note = shownNote(meta);
   }
   pushUser(currentMessage);
