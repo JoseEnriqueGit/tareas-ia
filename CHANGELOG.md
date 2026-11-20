@@ -6,6 +6,16 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-20
+
+### Corregido
+- El asistente vuelve a permitir que quien creó una tarea la reclame como responsable después de que un supervisor la reasignó (hallazgo de la revisión externa).
+- La recuperación de una respuesta ya guardada filtra explícitamente por usuario, además de RLS.
+
+### Conocido
+- Un reintento del chat que llega mientras la primera petición sigue en curso puede duplicar tareas; cerrarlo requiere un índice único en la base.
+- El temporizador de medianoche y el cierre de sesión sin conexión con token vencido no tienen pruebas automáticas (verificados a mano en el navegador).
+
 ## [1.3.0] - 2026-11-20
 
 ### Cambiado
@@ -13,8 +23,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Corregido
 - Eliminar o guardar ya no fingen éxito cuando la base no cambió ninguna fila; el chat no guarda "Eliminé" si no se borró.
-- Reintentar un mensaje al asistente no duplica tareas (identificador por mensaje).
-- Sin conexión y con la sesión vencida, la app abre igual en solo lectura con las últimas tareas, y se recupera al volver la red; cerrar sesión funciona sin conexión.
+- Reintentar un mensaje al asistente después de que el primero terminó no duplica tareas (identificador por mensaje). Un reintento mientras el primero sigue en curso todavía puede duplicarlas (ver "Conocido").
+- Sin conexión y con la sesión vencida, la app abre igual en solo lectura con las últimas tareas, y se recupera al volver la red. Cerrar sesión sin conexión borra los datos del dispositivo; la sesión en el servidor se cierra al volver la red.
 - Las vistas Hoy y Vencidas cambian solas al pasar la medianoche.
 
 ## [1.2.4] - 2026-11-20
@@ -90,6 +100,7 @@ Primera versión publicada en https://tareas-ia.vercel.app.
 - 15 pruebas automáticas de fechas y de validación de herramientas (RF-30).
 
 [Unreleased]: https://tareas-ia.vercel.app
+[1.3.1]: https://tareas-ia.vercel.app
 [1.3.0]: https://tareas-ia.vercel.app
 [1.2.4]: https://tareas-ia.vercel.app
 [1.2.3]: https://tareas-ia.vercel.app
