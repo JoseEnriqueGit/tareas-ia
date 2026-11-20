@@ -6,6 +6,14 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-20
+
+### Corregido
+- Un reintento del chat que llega mientras el primer envío sigue en curso ya no puede duplicar tareas: el mensaje se reserva al empezar (índice único, migración 20261120130000) y el reintento recibe la respuesta guardada o el aviso "todavía se está procesando". Si el primer envío falla antes de hacer nada, la reserva se libera para poder reintentar.
+- "No se creó ninguna tarea" solo se muestra cuando el servidor lo confirma.
+- Cerrar sesión sin conexión con el token vencido siempre termina en el login y borra los datos del dispositivo.
+- El temporizador de medianoche y el cierre de sesión sin conexión tienen pruebas automáticas.
+
 ## [1.3.1] - 2026-11-20
 
 ### Corregido
@@ -13,8 +21,9 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - La recuperación de una respuesta ya guardada filtra explícitamente por usuario, además de RLS.
 
 ### Conocido
-- Un reintento del chat que llega mientras la primera petición sigue en curso puede duplicar tareas; cerrarlo requiere un índice único en la base.
-- El temporizador de medianoche y el cierre de sesión sin conexión con token vencido no tienen pruebas automáticas (verificados a mano en el navegador).
+- Un reintento del chat que llega mientras la primera petición sigue en curso puede duplicar tareas; cerrarlo requiere un índice único en la base. (Resuelto en 1.3.2.)
+- El temporizador de medianoche y el cierre de sesión sin conexión con token vencido no tienen pruebas automáticas (verificados a mano en el navegador). (Resuelto en 1.3.2.)
+
 
 ## [1.3.0] - 2026-11-20
 
@@ -100,6 +109,7 @@ Primera versión publicada en https://tareas-ia.vercel.app.
 - 15 pruebas automáticas de fechas y de validación de herramientas (RF-30).
 
 [Unreleased]: https://tareas-ia.vercel.app
+[1.3.2]: https://tareas-ia.vercel.app
 [1.3.1]: https://tareas-ia.vercel.app
 [1.3.0]: https://tareas-ia.vercel.app
 [1.2.4]: https://tareas-ia.vercel.app
