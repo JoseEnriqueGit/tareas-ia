@@ -6,7 +6,13 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-11-20
+## [1.0.1] - 2026-11-19
+
+### Corregido
+- Una versión nueva pospuesta con «Más tarde» ahora se aplica sola al volver a la app sin texto escrito, y el aviso reaparece si todavía hay texto.
+- El aviso de versión nueva ya no tapa el encabezado: ocupa su propio espacio arriba.
+
+## [1.0.0] - 2026-11-19
 
 Primera versión publicada en https://tareas-ia.vercel.app.
 
@@ -26,4 +32,5 @@ Primera versión publicada en https://tareas-ia.vercel.app.
 - 15 pruebas automáticas de fechas y de validación de herramientas (RF-30).
 
 [Unreleased]: https://tareas-ia.vercel.app
+[1.0.1]: https://tareas-ia.vercel.app
 [1.0.0]: https://tareas-ia.vercel.app

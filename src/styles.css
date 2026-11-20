@@ -145,8 +145,8 @@ textarea.input { resize: none; }
 .account-note { margin-top: 10px; font-size: .85rem; }
 
 /* Aviso de versión nueva (solo si actualizar sola borraría texto escrito) */
-.update-banner { position: fixed; left: 8px; right: 8px; top: max(8px, env(safe-area-inset-top)); z-index: 30; max-width: 624px; margin: 0 auto;
-  display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; background: var(--text); color: #fff; border-radius: 12px;
+.update-banner { position: sticky; top: 0; z-index: 30; max-width: 624px; margin: max(8px, env(safe-area-inset-top)) auto 0; /* empuja el contenido: no tapa el encabezado */
+  display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; background: var(--text); color: #fff; border-radius: 12px; width: calc(100% - 16px);
   box-shadow: 0 4px 12px #0003; font-size: .9rem; font-weight: 600; }
 .update-banner span { flex: 1; }
 .update-banner .icon-btn { color: #fff; }

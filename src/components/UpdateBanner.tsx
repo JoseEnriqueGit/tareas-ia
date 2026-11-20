@@ -3,17 +3,17 @@ import { applyUpdate, onUpdateReady } from '../lib/pwaUpdate';
 
 /** Aviso de versión nueva; solo aparece cuando actualizar sola borraría algo que el usuario escribió. */
 export default function UpdateBanner() {
-  const [ready, setReady] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [visible, setVisible] = useState(false);
 
-  useEffect(() => onUpdateReady(setReady), []);
+  // Si el usuario tocó "Más tarde", vuelve a aparecer en la siguiente comprobación.
+  useEffect(() => onUpdateReady(() => setVisible(true)), []);
 
-  if (!ready || dismissed) return null;
+  if (!visible) return null;
   return (
     <div className="update-banner" role="status">
       <span>Hay una versión nueva de la app.</span>
       <button className="btn" onClick={applyUpdate}>Actualizar</button>
-      <button className="icon-btn" onClick={() => setDismissed(true)} aria-label="Más tarde">✕</button>
+      <button className="icon-btn" onClick={() => setVisible(false)} aria-label="Más tarde">✕</button>
     </div>
   );
 }

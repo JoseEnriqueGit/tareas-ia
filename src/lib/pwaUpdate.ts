@@ -5,8 +5,10 @@ import { registerSW } from 'virtual:pwa-register';
 const HOUR = 60 * 60 * 1000;
 
 let updateSW: ((reloadPage?: boolean) => Promise<void>) | null = null;
-let ready = false;
-const listeners = new Set<(ready: boolean) => void>();
+// Hay una versión nueva esperando. El navegador lo avisa una sola vez, así que se recuerda
+// para aplicarla más tarde (p. ej. si el usuario tocó "Más tarde" y luego borró el texto).
+let pending = false;
+const listeners = new Set<() => void>();
 
 /** Hay texto escrito por el usuario que una recarga borraría (chat, formulario, login, búsqueda). */
 function hasTypedText(): boolean {
@@ -15,21 +17,27 @@ function hasTypedText(): boolean {
   );
 }
 
+/** Aplica la versión pendiente si no se pierde nada; si no, (re)muestra el aviso. */
+function applyOrNotify() {
+  if (!pending) return;
+  if (hasTypedText()) listeners.forEach((listener) => listener());
+  else applyUpdate();
+}
+
 export function startUpdateChecks() {
   updateSW = registerSW({
     immediate: true,
     onNeedRefresh() {
-      if (!hasTypedText()) {
-        applyUpdate();
-        return;
-      }
-      ready = true;
-      listeners.forEach((listener) => listener(true));
+      pending = true;
+      applyOrNotify();
     },
     onRegisteredSW(_url, registration) {
       if (!registration) return;
-      // Busca una versión nueva al volver a la app y cada hora mientras está abierta.
-      const check = () => navigator.onLine && registration.update().catch(() => {});
+      // Al volver a la app y cada hora: aplica lo pendiente y busca una versión nueva.
+      const check = () => {
+        applyOrNotify();
+        if (navigator.onLine) registration.update().catch(() => {});
+      };
       document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && check());
       setInterval(check, HOUR);
     },
@@ -41,9 +49,10 @@ export function applyUpdate() {
   updateSW?.(true);
 }
 
-export function onUpdateReady(listener: (ready: boolean) => void) {
+/** Avisa cada vez que hay una versión nueva que no se aplicó sola por haber texto escrito. */
+export function onUpdateReady(listener: () => void) {
   listeners.add(listener);
-  listener(ready);
+  if (pending) listener();
   return () => {
     listeners.delete(listener);
   };
