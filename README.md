@@ -61,6 +61,22 @@ npx vercel deploy --prod
 
 Después, en Supabase Auth, pon la URL de Vercel como *Site URL*. La llave de IA nunca va a Vercel: vive solo como secreto de la Edge Function.
 
+### Versiones y actualizaciones
+
+La versión sigue [SemVer](https://semver.org/lang/es/) y vive en `package.json`. La app la muestra junto con la fecha del build en el menú de cuenta (el avatar). Los cambios de cada versión están en [CHANGELOG.md](CHANGELOG.md).
+
+Para publicar una versión:
+
+```bash
+# 1. Pasa lo de "Unreleased" a una sección con la versión nueva en CHANGELOG.md
+# 2. Sube la versión (crea el commit y el tag vX.Y.Z)
+npm version patch   # corrección; minor = función nueva; major = cambio incompatible
+# 3. Publica
+npx vercel deploy --prod
+```
+
+La app instalada se actualiza sola: busca una versión nueva al abrirse, al volver a primer plano y cada hora. Si no hay texto escrito, recarga con la versión nueva; si lo hay, muestra «Hay una versión nueva · Actualizar» para no perderlo.
+
 Para cambiar de modelo o de proveedor (por ejemplo OpenAI con `https://api.openai.com/v1`) basta con cambiar los tres secretos `AI_*`. No hay que tocar código.
 
 ## Estado de los requisitos

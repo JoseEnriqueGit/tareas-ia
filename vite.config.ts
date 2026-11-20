@@ -1,12 +1,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json' with { type: 'json' };
 
 export default defineConfig({
+  // Versión (SemVer, de package.json) y fecha del build, visibles en el menú de cuenta.
+  define: { __APP_VERSION__: JSON.stringify(pkg.version), __BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // La app registra el service worker y decide cuándo actualizar (src/lib/pwaUpdate.ts).
+      registerType: 'prompt',
+      injectRegister: false,
       includeAssets: ['apple-touch-icon.png', 'logo.svg'],
       manifest: {
         name: 'Tareas IA',

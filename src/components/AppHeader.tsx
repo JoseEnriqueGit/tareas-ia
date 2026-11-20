@@ -1,8 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import { signOut, useAuth } from '../auth';
-import { initials } from '../lib/format';
+import { initials, timeOf } from '../lib/format';
+import { todayIn } from '../../supabase/functions/_shared/dates.ts';
 import Sheet from './Sheet';
 import { LogoutIcon } from './Icons';
+
+// Versión y fecha del build, para saber desde el celular qué versión está instalada.
+const APP_VERSION = `${__APP_VERSION__} · build ${todayIn(new Date(__BUILD_TIME__))} ${timeOf(__BUILD_TIME__)}`;
 
 type Props = {
   /** Título grande; por defecto, el saludo con el nombre del usuario (RF-04). */
@@ -42,6 +46,7 @@ export default function AppHeader({ title, subtitle }: Props) {
             <LogoutIcon /> Cerrar sesión
           </button>
           <p className="muted account-note">Al salir se borran las tareas guardadas para usar sin conexión.</p>
+          <p className="muted account-note">Versión {APP_VERSION}</p>
         </Sheet>
       )}
     </header>
