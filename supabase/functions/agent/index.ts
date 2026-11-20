@@ -4,7 +4,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AiError, chatCompletion, type ChatMessage } from './ai.ts';
 import { emptyActions, runTool, toolDefinitions, type Actions } from './tools.ts';
-import { historyForModel, systemPrompt, type StoredMessage } from './history.ts';
+import { historyForModel, stripInternalNotes, systemPrompt, type StoredMessage } from './history.ts';
 
 const MAX_ITERATIONS = 5;
 const HISTORY_LIMIT = 10;
@@ -66,9 +66,8 @@ Deno.serve(async (req) => {
 
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt(profile?.full_name ?? 'el usuario', isSupervisor, team, requestTime, userId) },
-    // El historial lleva, solo para el modelo, las tareas que se vieron en cada tarjeta.
-    ...historyForModel(((history ?? []) as StoredMessage[]).reverse()),
-    { role: 'user', content: message },
+    // El historial (con el mensaje nuevo al final) lleva, solo para el modelo, las tareas que se vieron en cada tarjeta.
+    ...historyForModel(((history ?? []) as StoredMessage[]).reverse(), message),
   ];
 
   const actions = emptyActions();
@@ -83,7 +82,8 @@ Deno.serve(async (req) => {
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const answer = await chatCompletion(messages, toolDefinitions);
       if (!answer.tool_calls?.length) {
-        reply = answer.content?.trim() ?? '';
+        // Si el modelo copió la nota interna, se quita antes de guardar o responder.
+        reply = stripInternalNotes(answer.content ?? '');
         if (!reply && !hasActions()) throw new AiError('La IA devolvió una respuesta vacía.', 502);
         break;
       }

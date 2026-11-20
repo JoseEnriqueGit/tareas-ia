@@ -3,7 +3,7 @@
 // que RLS decide qué puede ver y tocar.
 import { z } from 'npm:zod@4';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { dayLabel, isValidIsoDate, todayIn, whenLabel } from '../_shared/dates.ts';
+import { addDays, dayLabel, isValidIsoDate, startOfDayUtc, todayIn, whenLabel } from '../_shared/dates.ts';
 
 const isoDate = z.string().refine(isValidIsoDate, 'Fecha inválida: usa el formato YYYY-MM-DD');
 const priority = z.enum(['baja', 'media', 'alta']);
@@ -22,6 +22,8 @@ export const schemas = {
     estado: z.enum(['abiertas', 'pendiente', 'en_progreso', 'hecha', 'todas']).optional(),
     desde: isoDate.optional(),
     hasta: isoDate.optional(),
+    completada_desde: isoDate.optional(),
+    completada_hasta: isoDate.optional(),
     texto: z.string().trim().max(100).optional(),
     responsable_id: taskId.optional(),
   }),
@@ -76,6 +78,11 @@ export const toolDefinitions = [
           estado: { type: 'string', enum: ['abiertas', 'pendiente', 'en_progreso', 'hecha', 'todas'], description: 'Por defecto "abiertas" (no hechas).' },
           desde: { type: 'string', description: 'Fecha límite mínima, YYYY-MM-DD.' },
           hasta: { type: 'string', description: 'Fecha límite máxima, YYYY-MM-DD.' },
+          completada_desde: {
+            type: 'string',
+            description: 'Completadas desde este día (incluido), YYYY-MM-DD. Si no das estado, se listan las hechas.',
+          },
+          completada_hasta: { type: 'string', description: 'Completadas hasta este día (incluido), YYYY-MM-DD.' },
           texto: { type: 'string', description: 'Busca en título y descripción, p. ej. "Juan".' },
           responsable_id: { type: 'string', description: 'Solo supervisores: filtra por responsable (su propio id para "mis tareas").' },
         },
@@ -259,11 +266,15 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
         .order('due_date', { nullsFirst: false })
         .order('created_at')
         .limit(LIST_LIMIT);
-      const estado = args.estado ?? 'abiertas';
+      const byCompletion = !!(args.completada_desde || args.completada_hasta);
+      const estado = args.estado ?? (byCompletion ? 'hecha' : 'abiertas');
       if (estado === 'abiertas') query = query.neq('status', 'done');
       else if (estado !== 'todas') query = query.eq('status', STATUS_DB[estado as keyof typeof STATUS_DB]);
       if (args.desde) query = query.gte('due_date', args.desde);
       if (args.hasta) query = query.lte('due_date', args.hasta);
+      // Días locales de Santo Domingo: desde el inicio de `completada_desde` hasta antes del día siguiente a `completada_hasta`.
+      if (args.completada_desde) query = query.gte('completed_at', startOfDayUtc(args.completada_desde));
+      if (args.completada_hasta) query = query.lt('completed_at', startOfDayUtc(addDays(args.completada_hasta, 1)));
       if (args.responsable_id) query = query.eq('assignee_id', args.responsable_id);
       if (args.texto) {
         // Se quitan los caracteres con significado en la sintaxis de filtros de PostgREST.

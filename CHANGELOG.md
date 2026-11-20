@@ -6,6 +6,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-11-20
+
+### Corregido
+- El asistente ya no copia en sus respuestas la nota interna con las tareas mostradas (ids y fechas); la app también la oculta en mensajes antiguos.
+- "¿Qué completé hoy/ayer/esta semana?" filtra por la fecha de completado en el servidor, en la zona horaria del usuario.
+
 ## [1.2.2] - 2026-11-20
 
 ### Corregido
@@ -68,6 +74,7 @@ Primera versión publicada en https://tareas-ia.vercel.app.
 - 15 pruebas automáticas de fechas y de validación de herramientas (RF-30).
 
 [Unreleased]: https://tareas-ia.vercel.app
+[1.2.3]: https://tareas-ia.vercel.app
 [1.2.2]: https://tareas-ia.vercel.app
 [1.2.1]: https://tareas-ia.vercel.app
 [1.2.0]: https://tareas-ia.vercel.app

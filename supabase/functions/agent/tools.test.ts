@@ -71,7 +71,7 @@ function fakeDb(batches: unknown[][], counts: (number | null)[] = []) {
         then: (resolve: (value: unknown) => void) =>
           resolve({ data: single ? (rows[0] ?? null) : rows, error: null, count }),
       };
-      for (const method of ['select', 'order', 'limit', 'neq', 'eq', 'gte', 'lte', 'or', 'maybeSingle', 'single']) {
+      for (const method of ['select', 'order', 'limit', 'neq', 'eq', 'gte', 'lt', 'lte', 'or', 'maybeSingle', 'single']) {
         query[method] = (...args: unknown[]) => {
           calls.push([method, ...args]);
           if (method === 'maybeSingle' || method === 'single') single = true;
@@ -208,4 +208,43 @@ Deno.test('responsable_id ajeno: listar_tareas habla de ver y crear_tarea de asi
   const create = JSON.parse(await runTool('crear_tarea', `{"titulo":"x","responsable_id":"${OTHER}"}`, ctx));
   assertEquals(create, { error: 'Solo un supervisor puede asignar tareas a otra persona.' });
   assertEquals(ctx.actions, emptyActions());
+});
+
+const filters = (db: { calls: [string, ...unknown[]][] }) =>
+  db.calls.filter(([method]) => ['eq', 'neq', 'gte', 'lt', 'lte'].includes(method));
+
+Deno.test('completada_desde/hasta filtran completed_at por días de Santo Domingo y por defecto piden las hechas', async () => {
+  const db = fakeDb([[row(ID, 'Cobrar a Juan', { status: 'done', completed_at: '2026-11-20T15:00:00Z' })]]);
+  const ctx = { db: db as never, userId: ID, isSupervisor: false, actions: emptyActions(), now: new Date('2026-11-20T15:00:00Z') };
+  const result = JSON.parse(await runTool('listar_tareas', '{"completada_desde":"2026-11-20","completada_hasta":"2026-11-20"}', ctx));
+  assertEquals(result.total, 1);
+  assertEquals(filters(db), [
+    ['eq', 'status', 'done'],
+    ['gte', 'completed_at', '2026-11-20T04:00:00.000Z'],
+    ['lt', 'completed_at', '2026-11-21T04:00:00.000Z'],
+  ]);
+
+  // Solo uno de los dos extremos, y un estado explícito que se respeta.
+  const week = fakeDb([[]]);
+  await runTool('listar_tareas', '{"completada_desde":"2026-11-16","estado":"todas"}', { ...ctx, db: week as never });
+  assertEquals(filters(week), [['gte', 'completed_at', '2026-11-16T04:00:00.000Z']]);
+  const until = fakeDb([[]]);
+  await runTool('listar_tareas', '{"completada_hasta":"2026-11-30"}', { ...ctx, db: until as never });
+  assertEquals(filters(until), [['eq', 'status', 'done'], ['lt', 'completed_at', '2026-12-01T04:00:00.000Z']]);
+
+  // Sin estos filtros, el estado por defecto sigue siendo "abiertas".
+  const open = fakeDb([[]]);
+  await runTool('listar_tareas', '{}', { ...ctx, db: open as never });
+  assertEquals(filters(open), [['neq', 'status', 'done']]);
+});
+
+Deno.test('completada_desde/hasta con fecha inválida se rechazan sin tocar la base', async () => {
+  const ctx = { db: noDb() as never, userId: ID, isSupervisor: false, actions: emptyActions(), now: NEAR_MIDNIGHT };
+  const bad = JSON.parse(await runTool('listar_tareas', '{"completada_desde":"2026-02-30"}', ctx));
+  assertStringIncludes(bad.error, 'completada_desde');
+  const badEnd = JSON.parse(await runTool('listar_tareas', '{"completada_hasta":"hoy"}', ctx));
+  assertStringIncludes(badEnd.error, 'completada_hasta');
+  assertEquals(ctx.actions, emptyActions());
+  const props = toolDefinitions.find((t) => t.function.name === 'listar_tareas')!.function.parameters.properties;
+  assert('completada_desde' in props && 'completada_hasta' in props, 'faltan en la definición de la herramienta');
 });

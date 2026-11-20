@@ -22,6 +22,33 @@ export function timeIn(now: Date, timeZone = TIME_ZONE): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
 }
 
+/** Diferencia en ms entre la hora local de la zona y UTC en el instante `at` (UTC-4 => -4 h). */
+function zoneOffsetMs(at: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(at));
+  const part = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+  const local = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+  return local - Math.floor(at / 1000) * 1000;
+}
+
+/** Instante UTC (ISO) en que empieza el día `isoDate` en la zona dada: "2026-11-20" -> "2026-11-20T04:00:00.000Z". */
+export function startOfDayUtc(isoDate: string, timeZone = TIME_ZONE): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const midnight = Date.UTC(y, m - 1, d);
+  // Se corrige dos veces por si el desplazamiento cambia (horario de verano) entre la estimación y el resultado.
+  let instant = midnight - zoneOffsetMs(midnight, timeZone);
+  instant = midnight - zoneOffsetMs(instant, timeZone);
+  return new Date(instant).toISOString();
+}
+
 export function isValidIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [y, m, d] = value.split('-').map(Number);

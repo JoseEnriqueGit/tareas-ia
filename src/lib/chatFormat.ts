@@ -85,7 +85,38 @@ function tableRow(line: string): string {
   return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim()).filter(Boolean).join(' · ');
 }
 
+const NOTE_START = /\[(?:Tareas mostradas|Contexto de la app)/i;
+
+/**
+ * Quita las notas internas del agente que el modelo copió en mensajes ya guardados (S13):
+ * "[Tareas mostradas …]" o "[Contexto de la app …]" hasta su "]" de cierre, con el espacio que las rodea.
+ * Misma regla que stripInternalNotes en supabase/functions/agent/history.ts (aquí local: el frontend no importa el agente).
+ */
+function stripInternalNotes(text: string): string {
+  let out = text;
+  for (let start = out.search(NOTE_START); start !== -1; start = out.search(NOTE_START)) {
+    let end = out.length;
+    for (let i = start, depth = 0; i < out.length; i++) {
+      if (out[i] === '[') depth++;
+      else if (out[i] === ']' && --depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+    const before = out.slice(0, start);
+    const after = out.slice(end);
+    const head = before.trimEnd();
+    const tail = after.trimStart();
+    const lineBreaks = (s: string) => s.split('\n').length - 1;
+    const breaks = Math.min(2, Math.max(lineBreaks(before.slice(head.length)), lineBreaks(after.slice(0, after.length - tail.length))));
+    const separator = !head || !tail ? '' : breaks ? '\n'.repeat(breaks) : ' ';
+    out = head + separator + tail;
+  }
+  return out.trim();
+}
+
 export function formatAssistantText(text: string, today: string): Block[] {
+  text = stripInternalNotes(text);
   const blocks: Block[] = [];
   let paragraph: string[] = [];
   let list: { ordered: boolean; items: string[][] } | null = null;

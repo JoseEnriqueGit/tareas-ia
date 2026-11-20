@@ -1,5 +1,5 @@
 import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
-import { addDays, dateContext, dayLabel, endOfWeek, isValidIsoDate, taskView, todayIn, UPCOMING_GROUPS, upcomingGroup, whenLabel } from './dates.ts';
+import { addDays, dateContext, dayLabel, endOfWeek, isValidIsoDate, startOfDayUtc, taskView, todayIn, UPCOMING_GROUPS, upcomingGroup, whenLabel } from './dates.ts';
 
 Deno.test('todayIn usa America/Santo_Domingo y no UTC cerca de medianoche', () => {
   // 03:30 UTC del 20 = 23:30 del 19 en Santo Domingo (UTC-4).
@@ -92,4 +92,15 @@ Deno.test('whenLabel da fecha y hora en Santo Domingo: hoy, ayer, día de la sem
   assertEquals(whenLabel('2026-11-16T13:00:00Z', now), 'lunes 16, 09:00');
   assertEquals(whenLabel('2026-11-01T14:00:00Z', now), '1 nov, 10:00');
   assertEquals(whenLabel(null, now), null);
+});
+
+Deno.test('startOfDayUtc da el inicio del día local como instante UTC, también al cambiar de mes y año', () => {
+  // Santo Domingo es UTC-4: la medianoche local es a las 04:00 UTC del mismo día.
+  assertEquals(startOfDayUtc('2026-11-20'), '2026-11-20T04:00:00.000Z');
+  assertEquals(startOfDayUtc(addDays('2026-11-30', 1)), '2026-12-01T04:00:00.000Z');
+  assertEquals(startOfDayUtc(addDays('2026-12-31', 1)), '2027-01-01T04:00:00.000Z');
+  // Otras zonas: se calcula con Intl, sin desplazamiento fijo (Tokio retrocede al mes anterior; Nueva York cambia de horario).
+  assertEquals(startOfDayUtc('2026-03-01', 'Asia/Tokyo'), '2026-02-28T15:00:00.000Z');
+  assertEquals(startOfDayUtc('2026-01-15', 'America/New_York'), '2026-01-15T05:00:00.000Z');
+  assertEquals(startOfDayUtc('2026-07-01', 'America/New_York'), '2026-07-01T04:00:00.000Z');
 });

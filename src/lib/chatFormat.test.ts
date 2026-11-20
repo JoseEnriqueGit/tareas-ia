@@ -130,3 +130,22 @@ Deno.test('la fecha no duplica palabras cuando el modelo ya nombró el día (S12
   assertEquals(plain('Es del 2026-11-19 y vence el 2026-11-23.'), 'Es de hoy y vence el lunes 23.');
   assertEquals(plain('Vence el 2026-12-05.'), 'Vence el 5 dic.');
 });
+
+Deno.test('la nota interna que copió el modelo no se muestra: ni ids, ni corchetes, ni fechas ISO (S13)', () => {
+  const summary =
+    'Ana Pérez tiene 4 tareas: una urgente que vence hoy, una para mañana, otra para el viernes 27 y una urgente para el 4 de diciembre.';
+  const stored =
+    `${summary}\n[Tareas mostradas en la app, en orden: 1) Enviar cotización a Ana (id 40cb989d-ceab-42df-8695-c431f6dd4f85, 2026-11-20) 2) Llamar a Juan (id 13d1007d-ffc9-4ee0-9e07-b7f2a08bd0d9, 2026-11-21)]`;
+  const blocks = formatAssistantText(stored, TODAY);
+  assertEquals(blocks, [{ type: 'paragraph', inlines: [text(summary)] }]);
+  const rendered = blocks.flatMap((b) => ('inlines' in b ? b.inlines : b.items.flat())).map((i) => ('text' in i ? i.text : '')).join('');
+  for (const leak of ['id ', '[', '2026-11-20', '2026-11-21']) assertEquals(rendered.includes(leak), false, leak);
+});
+
+Deno.test('también se quita la nota de contexto y se conservan los corchetes normales', () => {
+  const blocks = formatAssistantText('Hecho [urgente].\n[Contexto de la app (no lo repitas): en tu respuesta anterior\nla app mostró: 1) X (id 1, sin fecha)]\n\nOtra cosa.', TODAY);
+  assertEquals(blocks, [
+    { type: 'paragraph', inlines: [text('Hecho [urgente].')] },
+    { type: 'paragraph', inlines: [text('Otra cosa.')] },
+  ]);
+});
