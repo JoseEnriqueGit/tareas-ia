@@ -3,7 +3,7 @@
 Escribes en lenguaje natural lo que tienes pendiente ("cobrarle a Juan el viernes y mandarle la cotización a Ana mañana, urgente") y un agente de IA crea y gestiona las tareas en Supabase.
 
 - **Stack:** Vite + React + TypeScript (PWA con `vite-plugin-pwa`) · Supabase (Postgres, Auth, RLS, Edge Function en Deno) · Gemini por su API compatible con OpenAI.
-- **URL pública:** _pendiente de publicar en Vercel (RF-27)._
+- **URL pública:** **https://tareas-ia.vercel.app** (Vercel, plan gratuito). Para instalarla: en Android, Chrome → menú ⋮ → «Instalar app»; en iPhone, Safari → Compartir → «Agregar a pantalla de inicio».
 - **Plan inicial:** [PLAN.md](PLAN.md) · **Decisiones:** [DECISIONS.md](DECISIONS.md) · **Guion del video:** [docs/video-guion.md](docs/video-guion.md)
 
 ## Usuarios de prueba
@@ -49,6 +49,18 @@ update public.profiles set role = 'supervisor'
 where id = (select id from auth.users where email = 'jefa@tareas-ia.dev');
 ```
 
+### Despliegue (Vercel, gratis)
+
+```bash
+npx vercel login
+npx vercel link --project tareas-ia
+npx vercel env add VITE_SUPABASE_URL --environment production --type config --value "https://<ref>.supabase.co" --yes
+npx vercel env add VITE_SUPABASE_ANON_KEY --environment production --type config --value "<anon>" --yes
+npx vercel deploy --prod
+```
+
+Después, en Supabase Auth, pon la URL de Vercel como *Site URL*. La llave de IA nunca va a Vercel: vive solo como secreto de la Edge Function.
+
 Para cambiar de modelo o de proveedor (por ejemplo OpenAI con `https://api.openai.com/v1`) basta con cambiar los tres secretos `AI_*`. No hay que tocar código.
 
 ## Estado de los requisitos
@@ -81,11 +93,11 @@ En "Cómo se verificó":
 | RF-20 | Historial guardado *(deseable)* | Hecho | E2E: la conversación sigue al recargar. |
 | RF-21 | Dictado por voz *(deseable)* | Parcial | Botón con Web Speech API (`es-DO`), visible solo en navegadores compatibles. **No se probó con micrófono real.** |
 | RF-22 | Mobile-first 360 px | Hecho | Rediseño «Al alcance del pulgar» (`design/ui-movil/`). E2E a 360 × 760 en 14 pantallas: sin scroll horizontal y objetivos táctiles de al menos 44 px. |
-| RF-23 | Instalable (manifest, íconos, tema) | Hecho | Manifest con 192/512, maskable, `standalone` y `theme_color`. **Falta instalarla en un celular real** (requiere la URL pública). |
+| RF-23 | Instalable (manifest, íconos, tema) | Hecho | Manifest con 192/512, maskable, `standalone` y `theme_color`. E2E en la URL pública: `Page.getInstallabilityErrors` vacío y el service worker controla la página. **Falta instalarla en un celular físico.** |
 | RF-24 | Sin conexión básico | Hecho | E2E: sin red, el shell abre desde el service worker y en 0,2 s se ven las últimas tareas con el aviso "Sin conexión". |
 | RF-25 | Carga, vacío y error | Hecho | E2E con y sin red: ninguna pantalla en blanco ni congelada. |
 | RF-26 | Notificaciones push *(deseable)* | Fuera | Ver "Qué quedó fuera". |
-| RF-27 | URL pública | Pendiente | Listo para Vercel (`vercel.json`); falta la autorización para publicar. |
+| RF-27 | URL pública | Hecho | https://tareas-ia.vercel.app. E2E en producción con emulación móvil a 360 px: login, crear/editar/borrar, asistente, sin conexión y aislamiento entre usuarios. |
 | RF-28 | Llaves de IA fuera del navegador | Hecho | La llave solo existe como secreto de la Edge Function; el bundle y el repo no contienen llaves (revisado con grep). |
 | RF-29 | Esquema versionado | Hecho | `supabase/migrations/` se aplicó con `supabase db push` a un proyecto vacío. |
 | RF-30 | Pruebas automáticas *(deseable)* | Hecho | `npm test`: 13 pruebas (7 de fechas y 6 de herramientas del agente). |
@@ -108,7 +120,7 @@ En "Cómo se verificó":
 
 ## Qué quedó fuera (lista honesta)
 - **RF-11 etiquetas y RF-26 push:** son deseables caros (push necesita VAPID, suscripciones y un cron). Prioricé que lo obligatorio funcione.
-- **RF-27:** la app no está publicada todavía; espera autorización del dueño. Por lo tanto, **no se probó la instalación en un celular real** (RF-23) ni el video.
+- **Celular físico:** la app está publicada y pasa las pruebas con emulación móvil, pero la instalación en un teléfono real la hace el dueño (y la registra en el video).
 - **RF-21:** implementado, pero sin probar con micrófono real.
 - **Sin conexión solo se lee:** crear o editar requiere red. No hay cola de sincronización (el brief no la pide).
 - **Agente:** no se le dio una herramienta de "deshacer". En la capa gratuita de Gemini (~10 RPM), varios mensajes seguidos pueden devolver 429; la app lo informa y permite reintentar.

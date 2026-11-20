@@ -106,7 +106,12 @@ export default function TasksPage() {
       setError(`No se pudo cambiar el estado: ${errorMessage(error)}`);
       return;
     }
-    setTasks((current) => current!.map((t) => (t.id === task.id ? (data as Task) : t)));
+    setTasks((current) => {
+      const next = current!.map((t) => (t.id === task.id ? (data as Task) : t));
+      // La copia para usar sin conexión debe reflejar el cambio, no el estado anterior (RF-24).
+      localStorage.setItem(cacheKey, JSON.stringify(next));
+      return next;
+    });
   }
 
   function clearSheetFilters() {
