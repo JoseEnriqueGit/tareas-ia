@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth';
-import { supabase, errorMessage, PRIORITY_LABEL, STATUS_LABEL, TASK_SELECT, type Status, type Task } from '../lib/supabase';
+import { supabase, errorMessage, isTaskId, PRIORITY_LABEL, STATUS_LABEL, TASK_SELECT, type Status, type Task } from '../lib/supabase';
 import { dayLabel, todayIn } from '../../supabase/functions/_shared/dates.ts';
 import { initials, longDate, timeOf } from '../lib/format';
 import { useOnline } from '../lib/useOnline';
@@ -31,7 +31,7 @@ export default function TaskDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
-    if (!navigator.onLine) {
+    if (!navigator.onLine || !isTaskId(id)) {
       setLoading(false);
       return;
     }

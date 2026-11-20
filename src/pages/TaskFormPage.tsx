@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../auth';
 import {
   supabase,
   errorMessage,
+  isTaskId,
   PRIORITY_LABEL,
   TASK_SELECT,
   type Priority,
@@ -44,6 +45,7 @@ export default function TaskFormPage() {
   // Editar vuelve al detalle de la tarea; crear vuelve a la lista.
   const backTo = isNew ? '/' : `/tareas/${id}`;
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile } = useAuth();
   const isSupervisor = profile?.role === 'supervisor';
   const team = useTeam(isSupervisor);
@@ -64,6 +66,11 @@ export default function TaskFormPage() {
 
   useEffect(() => {
     if (isNew) return;
+    if (!isTaskId(id)) {
+      setLoading(false);
+      setLoadError('La tarea no existe o no tienes acceso a ella.');
+      return;
+    }
     supabase
       .from('tasks')
       .select(TASK_SELECT)
@@ -126,7 +133,9 @@ export default function TaskFormPage() {
       : await supabase.from('tasks').update(values).eq('id', id);
     setBusy(false);
     if (error) return setSaveError(errorMessage(error));
-    navigate(backTo, { replace: !isNew });
+    // Si se llegó desde el detalle, se vuelve atrás para no duplicar el detalle en el historial.
+    if (!isNew && location.key !== 'default') navigate(-1);
+    else navigate(backTo, { replace: !isNew });
   }
 
   async function remove() {

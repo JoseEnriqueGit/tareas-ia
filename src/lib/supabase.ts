@@ -42,3 +42,6 @@ export function errorMessage(error: unknown): string {
   }
   return 'Ocurrió un error inesperado.';
 }
+
+/** Un id de tarea válido (uuid). Evita mostrar errores técnicos si alguien escribe la URL a mano. */
+export const isTaskId = (value: string | undefined) => !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
