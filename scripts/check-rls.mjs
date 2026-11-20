@@ -1,7 +1,8 @@
 // Verifica RF-03 llamando a la API REST directamente con dos usuarios reales.
 // Uso: SUPABASE_URL=... SUPABASE_ANON_KEY=... node scripts/check-rls.mjs
 // Crea una tarea de Ana, intenta leerla/modificarla/borrarla como Beto y como anónimo,
-// y la borra al final.
+// y la borra al final. Luego (S14.2) la supervisora crea una tarea asignada a Beto para
+// comprobar que Beto solo puede cambiarle el estado, y la borra al final.
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_ANON_KEY;
 if (!url || !key) throw new Error('Define SUPABASE_URL y SUPABASE_ANON_KEY');
@@ -97,6 +98,37 @@ check('Supervisora ve todos los perfiles', jefaProfiles.status === 200 && jefaPr
 
 const cleanup = await rest('DELETE', `tasks?id=eq.${taskId}`, ana.token);
 check('Ana borra su tarea de prueba', cleanup.status === 200 && cleanup.body.length === 1, cleanup);
+
+// S14.2: quien solo es responsable cambia el estado y nada más; no puede borrar.
+const TITLE = 'Asignada por la jefa (prueba RLS)';
+const jefaTask = await rest('POST', 'tasks', jefa.token, { title: TITLE, assignee_id: beto.id });
+check('Supervisora crea una tarea asignada a Beto', jefaTask.status === 201 && jefaTask.body?.[0]?.assignee_id === beto.id, jefaTask);
+const jefaTaskId = jefaTask.body?.[0]?.id;
+
+const betoStatus = await rest('PATCH', `tasks?id=eq.${jefaTaskId}`, beto.token, { status: 'in_progress' });
+check('Beto cambia el estado de la tarea que le asignó la jefa', betoStatus.status === 200 && betoStatus.body[0]?.status === 'in_progress', betoStatus);
+
+const betoTitle = await rest('PATCH', `tasks?id=eq.${jefaTaskId}`, beto.token, { title: 'cambiada por Beto' });
+const afterTitle = await rest('GET', `tasks?id=eq.${jefaTaskId}&select=title`, jefa.token);
+check(
+  'Beto NO puede cambiar el título (error y la fila queda igual)',
+  betoTitle.status >= 400 && afterTitle.body?.[0]?.title === TITLE,
+  { betoTitle, afterTitle },
+);
+
+const betoDeleteAssigned = await rest('DELETE', `tasks?id=eq.${jefaTaskId}`, beto.token);
+const afterDelete = await rest('GET', `tasks?id=eq.${jefaTaskId}&select=id`, jefa.token);
+check(
+  'Beto NO puede borrar la tarea que le asignaron (0 filas)',
+  betoDeleteAssigned.status === 200 && betoDeleteAssigned.body.length === 0 && afterDelete.body?.length === 1,
+  { betoDeleteAssigned, afterDelete },
+);
+
+const jefaTitle = await rest('PATCH', `tasks?id=eq.${jefaTaskId}`, jefa.token, { title: `${TITLE} editada` });
+check('Supervisora sí cambia el título', jefaTitle.status === 200 && jefaTitle.body[0]?.title === `${TITLE} editada`, jefaTitle);
+
+const jefaCleanup = await rest('DELETE', `tasks?id=eq.${jefaTaskId}`, jefa.token);
+check('Supervisora borra su tarea de prueba', jefaCleanup.status === 200 && jefaCleanup.body.length === 1, jefaCleanup);
 
 console.log(failures ? `\n${failures} verificaciones fallaron` : '\nRLS OK: todas las verificaciones pasaron');
 process.exit(failures ? 1 : 0);
