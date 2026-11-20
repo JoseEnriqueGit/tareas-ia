@@ -16,7 +16,9 @@ begin
       raise exception 'Solo un supervisor puede asignar tareas a otra persona'
         using errcode = '42501';
     end if;
-    if old.owner_id is distinct from auth.uid()
+    -- auth.uid() es null solo fuera de la API (SQL Editor / service role): la administración no se limita.
+    if auth.uid() is not null
+       and old.owner_id is distinct from auth.uid()
        and not public.is_supervisor()
        and (new.title is distinct from old.title
          or new.description is distinct from old.description
