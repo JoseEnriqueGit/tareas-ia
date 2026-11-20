@@ -14,6 +14,7 @@ import {
 } from '../lib/supabase';
 import { addDays, isValidIsoDate, todayIn, weekdayName } from '../../supabase/functions/_shared/dates.ts';
 import { useTeam } from '../lib/useTeam';
+import { canDelete, canEditFields } from '../lib/permissions';
 import { initials } from '../lib/format';
 import Sheet from '../components/Sheet';
 import { BackIcon, ChevronIcon } from '../components/Icons';
@@ -46,7 +47,8 @@ export default function TaskFormPage() {
   const backTo = isNew ? '/' : `/tareas/${id}`;
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile } = useAuth();
+  const { session, profile, offline } = useAuth();
+  const userId = session?.user.id;
   const isSupervisor = profile?.role === 'supervisor';
   const team = useTeam(isSupervisor);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -56,6 +58,7 @@ export default function TaskFormPage() {
   const [form, setForm] = useState<Form>(EMPTY);
   const [assigneeId, setAssigneeId] = useState(profile?.id ?? '');
   const [assigneeName, setAssigneeName] = useState(profile?.full_name ?? '');
+  const [ownerId, setOwnerId] = useState(userId ?? '');
   const [loading, setLoading] = useState(!isNew);
   const [loadError, setLoadError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -81,6 +84,9 @@ export default function TaskFormPage() {
         if (error) return setLoadError(errorMessage(error));
         if (!data) return setLoadError('La tarea no existe o no tienes acceso a ella.');
         const task = data as Task;
+        // Quien solo es responsable no edita campos (S14.2): vuelve al detalle, donde puede cambiar el estado.
+        if (!canEditFields(task, userId, isSupervisor)) return navigate(`/tareas/${id}`, { replace: true });
+        setOwnerId(task.owner_id);
         setForm({
           title: task.title,
           description: task.description ?? '',
@@ -128,11 +134,13 @@ export default function TaskFormPage() {
       // Solo un supervisor reasigna; RLS y un trigger lo impiden a los demás.
       ...(isSupervisor && assigneeId ? { assignee_id: assigneeId } : {}),
     };
-    const { error } = isNew
+    // Al editar se pide la fila de vuelta: RLS no da error si filtra el update, solo afecta 0 filas (S14.3).
+    const { data, error } = isNew
       ? await supabase.from('tasks').insert(values)
-      : await supabase.from('tasks').update(values).eq('id', id);
+      : await supabase.from('tasks').update(values).eq('id', id).select('id');
     setBusy(false);
-    if (error) return setSaveError(errorMessage(error));
+    if (error) return setSaveError(saveErrorMessage(error));
+    if (!isNew && !data?.length) return setSaveError('No se pudo guardar: la tarea ya no existe o no tienes permiso.');
     // Si se llegó desde el detalle, se vuelve atrás para no duplicar el detalle en el historial.
     if (!isNew && location.key !== 'default') navigate(-1);
     else navigate(backTo, { replace: !isNew });
@@ -140,11 +148,12 @@ export default function TaskFormPage() {
 
   async function remove() {
     setBusy(true);
-    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    // Un borrado filtrado por RLS no da error: 0 filas borradas también es un fallo (S14.1).
+    const { error, count } = await supabase.from('tasks').delete({ count: 'exact' }).eq('id', id);
     setBusy(false);
-    if (error) {
+    if (error || count === 0) {
       setConfirmDelete(false);
-      return setSaveError(errorMessage(error));
+      return setSaveError(error ? errorMessage(error) : 'No se pudo eliminar: no tienes permiso o la tarea ya no existe.');
     }
     navigate('/');
   }
@@ -303,7 +312,7 @@ export default function TaskFormPage() {
 
           {saveError && <p className="form-alert" role="alert">{saveError}</p>}
 
-          {!isNew && (
+          {!isNew && canDelete({ owner_id: ownerId }, userId, isSupervisor) && (
             <button type="button" className="btn danger-outline block delete-btn" onClick={() => setConfirmDelete(true)}>
               Eliminar tarea
             </button>
@@ -311,7 +320,7 @@ export default function TaskFormPage() {
 
           <div className="form-bar">
             <Link to={backTo} className="btn secondary">Cancelar</Link>
-            <button className="btn" disabled={busy}>{busy ? 'Guardando…' : 'Guardar tarea'}</button>
+            <button className="btn" disabled={busy || offline}>{busy ? 'Guardando…' : 'Guardar tarea'}</button>
           </div>
         </form>
       </main>
@@ -341,6 +350,14 @@ export default function TaskFormPage() {
       )}
     </>
   );
+}
+
+/** El trigger tasks_before_write rechaza (42501) que el responsable cambie algo distinto del estado. */
+function saveErrorMessage(error: { code?: string; message: string }) {
+  if (error.code === '42501' && error.message.includes('cambiar el estado')) {
+    return 'Solo puedes cambiar el estado de esta tarea porque te la asignaron. Para cambiar lo demás, pídeselo a quien la creó o a un supervisor.';
+  }
+  return errorMessage(error);
 }
 
 type AssigneeProps = {

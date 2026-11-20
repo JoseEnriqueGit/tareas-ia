@@ -1,9 +1,9 @@
 // Edge Function del agente (RF-12 a RF-20, RF-28).
-// Recibe { message }, ejecuta el bucle de herramientas y guarda la conversación.
+// Recibe { message, clientId? }, ejecuta el bucle de herramientas y guarda la conversación.
 // Usa SIEMPRE el JWT del usuario (nunca service_role), así que RLS aplica a todo.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AiError, chatCompletion, type ChatMessage } from './ai.ts';
-import { emptyActions, runTool, toolDefinitions, type Actions } from './tools.ts';
+import { emptyActions, parseClientId, runTool, savedReply, toolDefinitions, type Actions } from './tools.ts';
 import { historyForModel, stripInternalNotes, systemPrompt, type StoredMessage } from './history.ts';
 
 const MAX_ITERATIONS = 5;
@@ -53,6 +53,16 @@ Deno.serve(async (req) => {
   const message = typeof body?.message === 'string' ? body.message.trim() : '';
   if (!message) return json({ error: 'Escribe un mensaje.' }, 400);
   if (message.length > 2000) return json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' }, 400);
+  const parsedClientId = parseClientId(body?.clientId);
+  if (!parsedClientId.ok) return json({ error: 'Identificador de mensaje inválido.', retryable: false }, 400);
+  const { clientId } = parsedClientId;
+
+  // S14.5: si este mensaje ya se procesó (el navegador perdió la respuesta y reintenta), se devuelve
+  // lo guardado sin volver a llamar al modelo ni a las herramientas, para no duplicar tareas.
+  if (clientId) {
+    const saved = await savedReply(db, clientId);
+    if (saved) return json({ messages: saved, replayed: true });
+  }
 
   // Paso 3: armar la conversación que verá el modelo: instrucciones + historial + mensaje nuevo.
   const [{ data: profile }, { data: history }] = await Promise.all([
@@ -111,7 +121,7 @@ Deno.serve(async (req) => {
   // Horas distintas para que el orden usuario -> asistente sea estable.
   const now = Date.now();
   const rows = [
-    { user_id: userId, role: 'user', content: message, meta: null, created_at: new Date(now).toISOString() },
+    { user_id: userId, role: 'user', content: message, meta: clientId ? { clientId } : null, created_at: new Date(now).toISOString() },
     { user_id: userId, role: 'assistant', content, meta, created_at: new Date(now + 1).toISOString() },
   ];
   const { data: saved, error: saveError } = await db

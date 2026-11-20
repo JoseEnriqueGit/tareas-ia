@@ -13,7 +13,8 @@ import './chat.css';
 
 type TaskRef = { id: string; title: string; due_date: string | null };
 type ListedTask = TaskRef & { priority: Priority; status: Status; assignee: string | null };
-// `listed` no existe en los mensajes guardados antes de S12.
+// `listed` no existe en los mensajes guardados antes de S12. Los mensajes del usuario guardan
+// otro meta ({ clientId }, S14.5), por eso las tarjetas solo leen el meta de las respuestas.
 type Meta = {
   created: TaskRef[];
   updated: TaskRef[];
@@ -50,7 +51,9 @@ export default function ChatPage() {
   const dockRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any>(null);
-  const { profile } = useAuth();
+  // Id del mensaje en curso (S14.5): reintentar el mismo texto lo reutiliza y el backend no lo procesa dos veces.
+  const attemptRef = useRef<{ text: string; clientId: string } | null>(null);
+  const { profile, offline } = useAuth();
   const sending = pending !== null;
 
   function dictate() {
@@ -76,7 +79,7 @@ export default function ChatPage() {
 
   async function loadHistory() {
     setHistoryError('');
-    if (!navigator.onLine) return setHistoryError('Sin conexión. El asistente necesita internet.');
+    if (!navigator.onLine || offline) return setHistoryError('Sin conexión. El asistente necesita internet.');
     const { data, error } = await supabase
       .from('chat_messages')
       .select('id, role, content, meta, created_at')
@@ -120,7 +123,9 @@ export default function ChatPage() {
     if (!message || sending) return;
     setPending({ id: 'pending', role: 'user', content: message, meta: null, created_at: new Date().toISOString() });
     setError(null);
-    const { data, error } = await supabase.functions.invoke('agent', { body: { message } });
+    if (attemptRef.current?.text !== message) attemptRef.current = { text: message, clientId: crypto.randomUUID() };
+    const { clientId } = attemptRef.current;
+    const { data, error } = await supabase.functions.invoke('agent', { body: { message, clientId } });
     if (error) {
       // RF-18: el texto escrito se conserva para reintentar.
       let detail = { message: errorMessage(error), retryable: true };
@@ -132,9 +137,14 @@ export default function ChatPage() {
       setError(detail);
       return;
     }
+    attemptRef.current = null;
     setText('');
     setPending(null);
-    setMessages((current) => [...(current ?? []), ...(data.messages as Message[])]);
+    // Un reintento puede devolver mensajes ya guardados: no se repiten si ya están en pantalla.
+    setMessages((current) => {
+      const shownIds = new Set((current ?? []).map((m) => m.id));
+      return [...(current ?? []), ...(data.messages as Message[]).filter((m) => !shownIds.has(m.id))];
+    });
   }
 
   function fill(value: string) {
@@ -144,10 +154,14 @@ export default function ChatPage() {
 
   async function confirmDelete(task: TaskRef) {
     setDeleting(true);
-    const { error } = await supabase.from('tasks').delete().eq('id', task.id);
-    if (error) {
+    // "Eliminé" solo se guarda si la base borró la fila; RLS no da error, borra 0 filas (S14.1).
+    const { error, count } = await supabase.from('tasks').delete({ count: 'exact' }).eq('id', task.id);
+    if (error || count === 0) {
       setDeleting(false);
-      return setError({ message: `No se pudo eliminar: ${errorMessage(error)}`, retryable: false });
+      return setError({
+        message: error ? `No se pudo eliminar: ${errorMessage(error)}` : 'No se pudo eliminar: no tienes permiso o la tarea ya no existe.',
+        retryable: false,
+      });
     }
     const content = `Eliminé «${task.title}».`;
     const { data } = await supabase
@@ -197,9 +211,10 @@ export default function ChatPage() {
           const day = m.created_at ? todayIn(new Date(m.created_at)) : '';
           const previous = shown[index - 1];
           const newDay = day && (!previous?.created_at || todayIn(new Date(previous.created_at)) !== day);
-          const acted = !!m.meta && (m.meta.created.length + m.meta.completed.length + m.meta.updated.length > 0 || !!m.meta.pendingDelete);
+          const meta = m.role === 'assistant' ? m.meta : null;
+          const acted = !!meta && (meta.created.length + meta.completed.length + meta.updated.length > 0 || !!meta.pendingDelete);
           // Si el modelo solo buscó la tarea para actuar sobre ella, la lista consultada sobra.
-          const listed = !acted && m.meta?.listed?.length ? m.meta.listed : [];
+          const listed = !acted && meta?.listed?.length ? meta.listed : [];
           return (
             <div key={m.id} className="chat-row">
               {newDay && <p className="chat-day">{dayLabel(day, today)}, {timeOf(m.created_at)}</p>}
@@ -209,7 +224,7 @@ export default function ChatPage() {
                 ) : (
                   <p className="bubble-text">{m.content}</p>
                 )}
-                {m.meta && <ResultCards meta={m.meta} today={today} />}
+                {meta && <ResultCards meta={meta} today={today} />}
                 {listed.length > 0 && (
                   <ListedCard
                     tasks={listed}
@@ -218,17 +233,17 @@ export default function ChatPage() {
                     isSupervisor={profile?.role === 'supervisor'}
                   />
                 )}
-                {m.meta?.pendingDelete && index === (messages?.length ?? 0) - 1 && (
+                {meta?.pendingDelete && index === (messages?.length ?? 0) - 1 && (
                   <div className="confirm-card">
                     <p>
-                      <strong>{m.meta.pendingDelete.title}</strong>
-                      {m.meta.pendingDelete.due_date && ` · ${dayLabel(m.meta.pendingDelete.due_date, today)}`}
+                      <strong>{meta.pendingDelete.title}</strong>
+                      {meta.pendingDelete.due_date && ` · ${dayLabel(meta.pendingDelete.due_date, today)}`}
                     </p>
                     <div className="actions">
-                      <button className="btn danger" disabled={deleting || sending} onClick={() => confirmDelete(m.meta!.pendingDelete!)}>
+                      <button className="btn danger" disabled={deleting || sending} onClick={() => confirmDelete(meta.pendingDelete!)}>
                         Sí, eliminar
                       </button>
-                      <button className="btn secondary" disabled={deleting || sending} onClick={() => cancelDelete(m.meta!.pendingDelete!)}>
+                      <button className="btn secondary" disabled={deleting || sending} onClick={() => cancelDelete(meta.pendingDelete!)}>
                         Cancelar
                       </button>
                     </div>

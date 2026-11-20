@@ -5,6 +5,7 @@ import { supabase, errorMessage, isTaskId, PRIORITY_LABEL, STATUS_LABEL, TASK_SE
 import { dayLabel, todayIn } from '../../supabase/functions/_shared/dates.ts';
 import { initials, longDate, timeOf } from '../lib/format';
 import { useOnline } from '../lib/useOnline';
+import { canDelete, canEditFields } from '../lib/permissions';
 import Sheet from '../components/Sheet';
 import { BackIcon, StatusCircle } from '../components/Icons';
 import './form.css';
@@ -20,8 +21,10 @@ const NEXT_ACTION: Record<Status, string> = { pending: 'Empezar', in_progress: '
 export default function TaskDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { session } = useAuth();
-  const online = useOnline();
+  const { session, profile, offline } = useAuth();
+  const isSupervisor = profile?.role === 'supervisor';
+  // Sin red, o con la sesión vencida sin poder renovarla, se muestra la copia guardada en solo lectura.
+  const online = useOnline() && !offline;
   const cacheKey = `tasks:${session!.user.id}`;
 
   const [task, setTask] = useState<DetailTask | null>(() => readCache(cacheKey).find((t) => t.id === id) ?? null);
@@ -31,7 +34,7 @@ export default function TaskDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
-    if (!navigator.onLine || !isTaskId(id)) {
+    if (!online || !isTaskId(id)) {
       setLoading(false);
       return;
     }
@@ -45,7 +48,7 @@ export default function TaskDetailPage() {
         if (error) return setError(errorMessage(error));
         setTask(data as DetailTask | null);
       });
-  }, [id]);
+  }, [id, online]);
 
   async function changeStatus() {
     if (!task) return;
@@ -69,11 +72,12 @@ export default function TaskDetailPage() {
   async function remove() {
     if (!task) return;
     setBusy(true);
-    const { error } = await supabase.from('tasks').delete().eq('id', task.id);
+    // RLS no da error al filtrar un borrado: si se borraron 0 filas, no se finge éxito (S14.1).
+    const { error, count } = await supabase.from('tasks').delete({ count: 'exact' }).eq('id', task.id);
     setBusy(false);
-    if (error) {
+    if (error || count === 0) {
       setConfirmDelete(false);
-      return setError(errorMessage(error));
+      return setError(error ? errorMessage(error) : 'No se pudo eliminar: no tienes permiso o la tarea ya no existe.');
     }
     writeCache(cacheKey, readCache(cacheKey).filter((t) => t.id !== task.id));
     navigate('/', { replace: true });
@@ -108,6 +112,9 @@ export default function TaskDetailPage() {
 
   const today = todayIn(new Date());
   const overdue = task.status !== 'done' && !!task.due_date && task.due_date < today;
+  // Quien solo es responsable cambia el estado; editar y eliminar son de quien la creó o de un supervisor (S14).
+  const mayDelete = canDelete(task, session!.user.id, isSupervisor);
+  const mayEdit = canEditFields(task, session!.user.id, isSupervisor);
 
   return (
     <>
@@ -167,16 +174,27 @@ export default function TaskDetailPage() {
           {NEXT_ACTION[task.status]}
         </button>
         {!online && <p className="muted detail-offline">Necesitas conexión para cambiar o eliminar la tarea.</p>}
+        {!mayEdit && (
+          <p className="muted detail-readonly">
+            Te asignaron esta tarea: puedes cambiar su estado. Para cambiar lo demás, pídeselo a quien la creó o a un supervisor.
+          </p>
+        )}
 
-        <div className="form-bar">
-          <button className="btn danger-outline" onClick={() => setConfirmDelete(true)} disabled={busy || !online}>
-            Eliminar
-          </button>
-          <Link to={`/tareas/${task.id}/editar`} className={online ? 'btn' : 'btn disabled-link'} aria-disabled={!online}
-            onClick={(e) => !online && e.preventDefault()}>
-            Editar
-          </Link>
-        </div>
+        {(mayDelete || mayEdit) && (
+          <div className="form-bar">
+            {mayDelete && (
+              <button className="btn danger-outline" onClick={() => setConfirmDelete(true)} disabled={busy || !online}>
+                Eliminar
+              </button>
+            )}
+            {mayEdit && (
+              <Link to={`/tareas/${task.id}/editar`} className={online ? 'btn' : 'btn disabled-link'} aria-disabled={!online}
+                onClick={(e) => !online && e.preventDefault()}>
+                Editar
+              </Link>
+            )}
+          </div>
+        )}
       </main>
 
       {confirmDelete && (

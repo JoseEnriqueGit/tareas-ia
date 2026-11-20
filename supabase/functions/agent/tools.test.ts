@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1';
-import { emptyActions, parseArgs, runTool, toolDefinitions } from './tools.ts';
+import { emptyActions, parseArgs, parseClientId, runTool, savedReply, toolDefinitions } from './tools.ts';
 
 const ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
 
@@ -71,7 +71,7 @@ function fakeDb(batches: unknown[][], counts: (number | null)[] = []) {
         then: (resolve: (value: unknown) => void) =>
           resolve({ data: single ? (rows[0] ?? null) : rows, error: null, count }),
       };
-      for (const method of ['select', 'order', 'limit', 'neq', 'eq', 'gte', 'lt', 'lte', 'or', 'maybeSingle', 'single']) {
+      for (const method of ['select', 'update', 'order', 'limit', 'neq', 'eq', 'gt', 'gte', 'lt', 'lte', 'or', 'maybeSingle', 'single']) {
         query[method] = (...args: unknown[]) => {
           calls.push([method, ...args]);
           if (method === 'maybeSingle' || method === 'single') single = true;
@@ -87,7 +87,7 @@ function fakeDb(batches: unknown[][], counts: (number | null)[] = []) {
 const noDb = () => new Proxy({}, { get: () => { throw new Error('no debería usarse la base'); } });
 
 const row = (id: string, title: string, extra: Record<string, unknown> = {}) => ({
-  id, title, description: null, due_date: '2026-11-20', priority: 'high', status: 'pending',
+  id, title, description: null, due_date: '2026-11-20', priority: 'high', status: 'pending', owner_id: ID,
   assignee: { id: ID, full_name: 'Ana Pérez' }, ...extra,
 });
 
@@ -247,4 +247,95 @@ Deno.test('completada_desde/hasta con fecha inválida se rechazan sin tocar la b
   assertEquals(ctx.actions, emptyActions());
   const props = toolDefinitions.find((t) => t.function.name === 'listar_tareas')!.function.parameters.properties;
   assert('completada_desde' in props && 'completada_hasta' in props, 'faltan en la definición de la herramienta');
+});
+
+// S14.1: eliminar_tarea solo propone borrar lo que el usuario puede borrar (creador o supervisor).
+Deno.test('eliminar_tarea rechaza al responsable que no creó la tarea y no deja eliminación pendiente', async () => {
+  const actions = emptyActions();
+  const result = JSON.parse(await runTool('eliminar_tarea', `{"id":"${OTHER}"}`, {
+    db: fakeDb([[row(OTHER, 'Asignada por la jefa', { owner_id: OTHER })]]) as never, userId: ID, isSupervisor: false, actions, now: NEAR_MIDNIGHT,
+  }));
+  assertEquals(result, { error: 'Solo quien creó la tarea o un supervisor puede eliminarla.' });
+  assertEquals(actions, emptyActions());
+});
+
+Deno.test('eliminar_tarea deja pendiente la tarea para quien la creó y para un supervisor', async () => {
+  const owner = emptyActions();
+  const db = fakeDb([[row(OTHER, 'Mía', { owner_id: ID })]]);
+  await runTool('eliminar_tarea', `{"id":"${OTHER}"}`, { db: db as never, userId: ID, isSupervisor: false, actions: owner, now: NEAR_MIDNIGHT });
+  assertEquals(owner.pendingDelete, { id: OTHER, title: 'Mía', due_date: '2026-11-20' });
+  assertStringIncludes(db.calls.find(([method]) => method === 'select')![1] as string, 'owner_id');
+
+  const boss = emptyActions();
+  await runTool('eliminar_tarea', `{"id":"${OTHER}"}`, {
+    db: fakeDb([[row(OTHER, 'De otro', { owner_id: OTHER })]]) as never, userId: ID, isSupervisor: true, actions: boss, now: NEAR_MIDNIGHT,
+  });
+  assertEquals(boss.pendingDelete, { id: OTHER, title: 'De otro', due_date: '2026-11-20' });
+});
+
+// S14.2: el responsable que no es creador ni supervisor solo cambia el estado.
+Deno.test('actualizar_tarea rechaza cambiar campos de una tarea solo asignada, sin actualizar la base', async () => {
+  for (const args of [`{"id":"${OTHER}","titulo":"Otro"}`, `{"id":"${OTHER}","prioridad":"alta","estado":"hecha"}`, `{"id":"${OTHER}","fecha_limite":null}`]) {
+    const actions = emptyActions();
+    const db = fakeDb([[{ owner_id: OTHER }]]);
+    const result = JSON.parse(await runTool('actualizar_tarea', args, { db: db as never, userId: ID, isSupervisor: false, actions, now: NEAR_MIDNIGHT }));
+    assertEquals(result, { error: 'Solo puedes cambiar el estado de una tarea que te asignaron.' });
+    assert(!db.calls.some(([method]) => method === 'update'), `no debería actualizar con ${args}`);
+    assertEquals(actions, emptyActions());
+  }
+});
+
+Deno.test('actualizar_tarea deja cambiar el estado al responsable y los campos al creador o al supervisor', async () => {
+  const assignee = emptyActions();
+  const statusDb = fakeDb([[row(OTHER, 'Asignada', { owner_id: OTHER, status: 'in_progress' })]]);
+  const status = JSON.parse(await runTool('actualizar_tarea', `{"id":"${OTHER}","estado":"en_progreso"}`, {
+    db: statusDb as never, userId: ID, isSupervisor: false, actions: assignee, now: NEAR_MIDNIGHT,
+  }));
+  assertEquals(status.actualizada.estado, 'en_progreso');
+  assert(statusDb.calls.some(([method, values]) => method === 'update' && JSON.stringify(values) === '{"status":"in_progress"}'));
+  assertEquals(assignee.updated, [{ id: OTHER, title: 'Asignada', due_date: '2026-11-20' }]);
+
+  const owner = emptyActions();
+  const ownerDb = fakeDb([[{ owner_id: ID }], [row(OTHER, 'Nuevo título')]]);
+  await runTool('actualizar_tarea', `{"id":"${OTHER}","titulo":"Nuevo título"}`, { db: ownerDb as never, userId: ID, isSupervisor: false, actions: owner, now: NEAR_MIDNIGHT });
+  assertEquals(owner.updated, [{ id: OTHER, title: 'Nuevo título', due_date: '2026-11-20' }]);
+
+  const boss = emptyActions();
+  const bossDb = fakeDb([[row(OTHER, 'Otro título', { owner_id: OTHER })]]);
+  await runTool('actualizar_tarea', `{"id":"${OTHER}","titulo":"Otro título"}`, { db: bossDb as never, userId: ID, isSupervisor: true, actions: boss, now: NEAR_MIDNIGHT });
+  assertEquals(boss.updated, [{ id: OTHER, title: 'Otro título', due_date: '2026-11-20' }]);
+});
+
+Deno.test('completar_tarea sigue funcionando para el responsable que no creó la tarea', async () => {
+  const actions = emptyActions();
+  const result = JSON.parse(await runTool('completar_tarea', `{"id":"${OTHER}"}`, {
+    db: fakeDb([[row(OTHER, 'Asignada', { owner_id: OTHER, status: 'done' })]]) as never, userId: ID, isSupervisor: false, actions, now: NEAR_MIDNIGHT,
+  }));
+  assertEquals(result.completada.estado, 'hecha');
+  assertEquals(actions.completed, [{ id: OTHER, title: 'Asignada', due_date: '2026-11-20' }]);
+});
+
+// S14.5: idempotencia del chat por clientId.
+Deno.test('parseClientId acepta un uuid o nada y rechaza otros valores', () => {
+  assertEquals(parseClientId(undefined), { ok: true, clientId: null });
+  assertEquals(parseClientId(null), { ok: true, clientId: null });
+  assertEquals(parseClientId(ID), { ok: true, clientId: ID });
+  assertEquals(parseClientId('abc'), { ok: false });
+  assertEquals(parseClientId(42), { ok: false });
+});
+
+Deno.test('savedReply devuelve el mensaje guardado con ese clientId y la respuesta que le siguió', async () => {
+  const user = { id: 'u1', role: 'user' as const, content: 'Cobrar a Juan', meta: { clientId: ID }, created_at: '2026-11-20T10:00:00.000Z' };
+  const reply = { id: 'a1', role: 'assistant' as const, content: 'Creé 1 tarea.', meta: null, created_at: '2026-11-20T10:00:00.001Z' };
+  const db = fakeDb([[user], [reply]]);
+  assertEquals(await savedReply(db as never, ID), [user, reply]);
+  assert(db.calls.some(([method, column, value]) => method === 'eq' && column === 'meta->>clientId' && value === ID));
+  assert(db.calls.some(([method, column, value]) => method === 'gt' && column === 'created_at' && value === user.created_at));
+
+  const missing = fakeDb([[]]);
+  assertEquals(await savedReply(missing as never, ID), null);
+  assertEquals(missing.calls.filter(([method]) => method === 'from').length, 1);
+
+  // Sin respuesta guardada no hay par que repetir.
+  assertEquals(await savedReply(fakeDb([[user], []]) as never, ID), null);
 });

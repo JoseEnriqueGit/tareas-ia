@@ -200,8 +200,12 @@ type Row = {
   status: keyof typeof STATUS_ES;
   created_at?: string | null;
   completed_at?: string | null;
+  owner_id?: string;
   assignee: { id: string; full_name: string } | null;
 };
+
+const ONLY_STATUS = 'Solo puedes cambiar el estado de una tarea que te asignaron.';
+const ONLY_OWNER_DELETES = 'Solo quien creó la tarea o un supervisor puede eliminarla.';
 
 /** Tarea como la ve el modelo. `vencida`, `cuando` y las horas se calculan aquí: el modelo no hace cuentas de fechas. */
 function toModel(row: Row, now: Date) {
@@ -311,6 +315,14 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       if (args.estado) changes.status = STATUS_DB[args.estado as keyof typeof STATUS_DB];
       if (args.responsable_id) changes.assignee_id = args.responsable_id;
       if (!Object.keys(changes).length) return { error: 'No hay cambios que aplicar.' };
+      // S14.2: quien solo es responsable cambia el estado; el resto se rechaza antes de escribir
+      // (el trigger tasks_before_write lo impone igual en la base).
+      if (!ctx.isSupervisor && Object.keys(changes).some((column) => column !== 'status')) {
+        const { data: task, error: readError } = await db.from('tasks').select('owner_id').eq('id', args.id).maybeSingle();
+        if (readError) return { error: readError.message };
+        if (!task) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };
+        if ((task as { owner_id: string }).owner_id !== ctx.userId) return { error: ONLY_STATUS };
+      }
       const { data, error } = await db.from('tasks').update(changes).eq('id', args.id).select(COLUMNS).maybeSingle();
       if (error) return { error: error.message };
       if (!data) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };
@@ -332,11 +344,53 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       if (actions.pendingDelete && actions.pendingDelete.id !== args.id) {
         return { error: 'Solo se puede eliminar una tarea por mensaje. Pide confirmar la primera y luego la siguiente.' };
       }
-      const { data, error } = await db.from('tasks').select(COLUMNS).eq('id', args.id).maybeSingle();
+      const { data, error } = await db.from('tasks').select(`${COLUMNS}, owner_id`).eq('id', args.id).maybeSingle();
       if (error) return { error: error.message };
       if (!data) return { error: 'No existe una tarea con ese id (o no tienes acceso).' };
+      // S14.1: solo se propone borrar lo que la base dejaría borrar (creador o supervisor).
+      if ((data as unknown as Row).owner_id !== ctx.userId && !ctx.isSupervisor) return { error: ONLY_OWNER_DELETES };
       actions.pendingDelete = ref(data as unknown as Row);
       return { pendiente_de_confirmacion: model(data), nota: 'La app mostrará un botón para confirmar. No digas que ya se eliminó.' };
     }
   }
+}
+
+// Idempotencia del chat (S14.5) ----------------------------------------------
+
+const clientIdSchema = z.uuid();
+
+/** `clientId` del cuerpo de la petición: opcional (clientes viejos no lo mandan), pero si viene debe ser uuid. */
+export function parseClientId(value: unknown): { ok: true; clientId: string | null } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, clientId: null };
+  const result = clientIdSchema.safeParse(value);
+  return result.success ? { ok: true, clientId: result.data } : { ok: false };
+}
+
+export type SavedMessage = { id: string; role: 'user' | 'assistant'; content: string; meta: unknown; created_at: string };
+
+const MESSAGE_COLUMNS = 'id, role, content, meta, created_at';
+
+/**
+ * Si este mensaje ya se procesó (un reintento tras perder la respuesta), devuelve lo guardado:
+ * el mensaje del usuario con ese clientId y la respuesta siguiente. RLS limita la búsqueda al propio chat.
+ */
+export async function savedReply(db: SupabaseClient, clientId: string): Promise<SavedMessage[] | null> {
+  const { data: user, error } = await db
+    .from('chat_messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('role', 'user')
+    .eq('meta->>clientId', clientId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !user) return null;
+  const { data: reply } = await db
+    .from('chat_messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('role', 'assistant')
+    .gt('created_at', (user as SavedMessage).created_at)
+    .order('created_at')
+    .limit(1)
+    .maybeSingle();
+  return reply ? [user as SavedMessage, reply as SavedMessage] : null;
 }

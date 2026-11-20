@@ -22,7 +22,7 @@
 .detail-person { display: flex; align-items: center; gap: 8px; }
 
 .detail-status-btn { margin-top: 4px; }
-.detail-offline { font-size: .85rem; text-align: center; }
+.detail-offline, .detail-readonly { font-size: .85rem; text-align: center; }
 .detail .form-bar .btn { flex: 1; }
 .detail .form-bar .btn.danger-outline { flex: 0 0 120px; }
 .btn.disabled-link { background: var(--disabled-bg); color: var(--muted); pointer-events: none; }
