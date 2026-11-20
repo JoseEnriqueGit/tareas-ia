@@ -57,7 +57,9 @@ export default function App() {
 
 /** RF-24: aviso sin conexión con la hora de las últimas tareas guardadas. */
 function OfflineBanner({ userId }: { userId: string }) {
-  const online = useOnline();
+  // También con red, si la sesión venció y no se pudo renovar (modo sin conexión de solo lectura).
+  const { offline } = useAuth();
+  const online = useOnline() && !offline;
   if (online) return null;
   const savedAt = localStorage.getItem(tasksSavedAtKey(userId));
   return (

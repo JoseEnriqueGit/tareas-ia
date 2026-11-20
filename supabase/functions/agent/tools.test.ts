@@ -339,3 +339,13 @@ Deno.test('savedReply devuelve el mensaje guardado con ese clientId y la respues
   // Sin respuesta guardada no hay par que repetir.
   assertEquals(await savedReply(fakeDb([[user], []]) as never, ID), null);
 });
+
+Deno.test('actualizar_tarea: el responsable que se pone a sí mismo como responsable solo cambia el estado (sin error falso)', async () => {
+  const actions = emptyActions();
+  const db = fakeDb([[row(OTHER, 'Asignada', { owner_id: OTHER, status: 'done' })]]);
+  const result = JSON.parse(await runTool('actualizar_tarea', `{"id":"${OTHER}","responsable_id":"${ID}","estado":"hecha"}`, {
+    db: db as never, userId: ID, isSupervisor: false, actions, now: NEAR_MIDNIGHT,
+  }));
+  assertEquals(result.actualizada.estado, 'hecha');
+  assert(db.calls.some(([method, values]) => method === 'update' && JSON.stringify(values) === '{"status":"done"}'));
+});

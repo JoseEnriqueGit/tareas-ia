@@ -313,7 +313,8 @@ async function execute(name: ToolName, args: any, ctx: Context): Promise<unknown
       if (args.fecha_limite !== undefined) changes.due_date = args.fecha_limite;
       if (args.prioridad) changes.priority = PRIORITY_DB[args.prioridad as keyof typeof PRIORITY_DB];
       if (args.estado) changes.status = STATUS_DB[args.estado as keyof typeof STATUS_DB];
-      if (args.responsable_id) changes.assignee_id = args.responsable_id;
+      // Ponerse a sí mismo como responsable de una tarea propia o asignada no cambia nada para un usuario normal.
+      if (args.responsable_id && (ctx.isSupervisor || args.responsable_id !== ctx.userId)) changes.assignee_id = args.responsable_id;
       if (!Object.keys(changes).length) return { error: 'No hay cambios que aplicar.' };
       // S14.2: quien solo es responsable cambia el estado; el resto se rechaza antes de escribir
       // (el trigger tasks_before_write lo impone igual en la base).
