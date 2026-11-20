@@ -126,7 +126,7 @@ export function useAuth() {
 }
 
 export async function signOut() {
-  // Primero se borran los datos locales: aunque la salida remota falle, nada queda en el dispositivo.
+  // Primero se borran los datos guardados (perfil y tareas): aunque la salida remota falle, no quedan en el dispositivo.
   clearOfflineData();
   // Sin red la salida global falla y deja la sesión guardada: se cierra al menos en este dispositivo.
   if (!(await trySignOut('global'))) await trySignOut('local');

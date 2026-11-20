@@ -136,7 +136,8 @@ Deno.serve(async (req) => {
 
   // Horas distintas para que el orden usuario -> asistente sea estable.
   const now = Date.now();
-  // Se guardan ambos mensajes juntos y solo tras tener respuesta: si la IA falló no queda nada a medias.
+  // Camino sin clientId (clientes viejos): ambos mensajes se guardan juntos y solo tras tener respuesta.
+  // Con clientId el mensaje ya se reservó al empezar y solo se guarda la respuesta (reservation.ts).
   const rows = [
     { user_id: userId, role: 'user', content: message, meta: null, created_at: new Date(now).toISOString() },
     { user_id: userId, role: 'assistant', content: result.content, meta: result.meta, created_at: new Date(now + 1).toISOString() },

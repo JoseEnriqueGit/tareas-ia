@@ -12,7 +12,7 @@ Deno.test('todayIn usa America/Santo_Domingo y no UTC cerca de medianoche', () =
   assertEquals(todayIn(new Date('2026-11-20T04:00:00Z')), '2026-11-20');
 });
 
-// Es la tabla que lee el modelo: a las 23:30 locales UTC ya es el día siguiente y no debe confundirlo.
+// Es la tabla que lee el modelo: a las 23:30 en Santo Domingo ya es el día siguiente en UTC (03:30) y no debe confundirlo.
 Deno.test('dateContext resuelve "mañana" y "el viernes" a las 23:30 locales', () => {
   // Jueves 19 de noviembre de 2026, 23:30 en Santo Domingo.
   const context = dateContext(new Date('2026-11-20T03:30:00Z'));

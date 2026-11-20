@@ -93,7 +93,8 @@ export async function handleWithReservation(
   const reservation = reserved as SavedMessage;
 
   const result = await run();
-  // Solo se libera si no se ejecutó nada; con acciones hechas, liberar permitiría duplicarlas al reintentar.
+  // runAgent devuelve 'failed' solo si la IA falló antes de cualquier acción: ahí se libera la reserva.
+  // Con acciones ya hechas el resultado es 'done' (parcial) y no se libera, para no duplicarlas al reintentar.
   if (result.kind === 'failed') {
     const { error: releaseError } = await db.from('chat_messages').delete().eq('id', reservation.id).eq('user_id', userId);
     // Si no se pudo liberar, el reintento verá "se está procesando" y, pasada la ventana, "no pude confirmar".

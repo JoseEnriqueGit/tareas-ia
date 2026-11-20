@@ -83,8 +83,10 @@ function joinLines(lines: string[], today: string): Inline[] {
   return lines.flatMap((line, i) => [...(i ? [{ type: 'break' } as Inline] : []), ...parseInline(line.trim(), today)]);
 }
 
-/** Fila de tabla Markdown sin barras: "| a | b |" -> "a · b". */
-// Las tablas no caben en una burbuja de chat: se convierten en texto plano por fila.
+/**
+ * Fila de tabla Markdown sin barras: "| a | b |" -> "a · b".
+ * Las tablas no caben en una burbuja de chat: se convierten en texto plano por fila.
+ */
 function tableRow(line: string): string {
   return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim()).filter(Boolean).join(' · ');
 }
